@@ -22,4 +22,4 @@ COPY --from=build /app/prisma ./prisma
 RUN npx prisma generate
 
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy; echo \"[boot] prisma migrate deploy exit code: $?\"; node dist/index.js"]
