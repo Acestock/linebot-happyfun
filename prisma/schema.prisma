@@ -1,0 +1,119 @@
+// Prisma schema — see docs/ARCHITECTURE.md 第 3 節 ER 圖
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GameSessionStatus {
+  pending
+  active
+  finished
+  cancelled
+  timeout
+}
+
+model Group {
+  id               String    @id @default(uuid())
+  lineGroupId      String    @unique @map("line_group_id")
+  displayName      String?   @map("display_name")
+  personaStyle     String    @default("energetic_roast") @map("persona_style")
+  joinedAt         DateTime  @default(now()) @map("joined_at")
+  isActive         Boolean   @default(true) @map("is_active")
+  memoryClearedAt  DateTime? @map("memory_cleared_at")
+
+  members      GroupMember[]
+  memories     GroupMemory[]
+  gameSessions GameSession[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id                String   @id @default(uuid())
+  groupId           String   @map("group_id")
+  lineUserId        String   @map("line_user_id")
+  displayName       String?  @map("display_name")
+  firstSeenAt       DateTime @default(now()) @map("first_seen_at")
+  lastInteractedAt  DateTime @default(now()) @map("last_interacted_at")
+  messageCount      Int      @default(0) @map("message_count")
+
+  group        Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  participants GameParticipant[]
+  moves        GameMove[]
+  wonSessions  GameSession[]     @relation("SessionWinner")
+  startedSessions GameSession[]  @relation("SessionStarter")
+
+  @@unique([groupId, lineUserId])
+  @@map("group_members")
+}
+
+model GroupMemory {
+  id         String   @id @default(uuid())
+  groupId    String   @map("group_id")
+  memoryType String   @map("memory_type")
+  key        String
+  value      Json
+  weight     Float    @default(1.0)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memoryType, key])
+  @@map("group_memory")
+}
+
+model GameSession {
+  id                 String            @id @default(uuid())
+  groupId            String            @map("group_id")
+  gameType           String            @map("game_type")
+  status             GameSessionStatus @default(pending)
+  config             Json
+  startedAt          DateTime          @default(now()) @map("started_at")
+  endedAt            DateTime?         @map("ended_at")
+  winnerMemberId     String?           @map("winner_member_id")
+  startedByMemberId  String?           @map("started_by_member_id")
+
+  group        Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  winner       GroupMember?      @relation("SessionWinner", fields: [winnerMemberId], references: [id])
+  starter      GroupMember?      @relation("SessionStarter", fields: [startedByMemberId], references: [id])
+  participants GameParticipant[]
+  moves        GameMove[]
+
+  @@index([groupId, status])
+  @@map("game_sessions")
+}
+
+model GameParticipant {
+  id            String   @id @default(uuid())
+  sessionId     String   @map("session_id")
+  memberId      String   @map("member_id")
+  joinedAt      DateTime @default(now()) @map("joined_at")
+  rank          Int?
+  guessesCount  Int      @default(0) @map("guesses_count")
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, memberId])
+  @@map("game_participants")
+}
+
+model GameMove {
+  id         String   @id @default(uuid())
+  sessionId  String   @map("session_id")
+  memberId   String   @map("member_id")
+  moveIndex  Int      @map("move_index")
+  payload    Json
+  result     Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("game_moves")
+}
