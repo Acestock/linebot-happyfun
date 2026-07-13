@@ -107,6 +107,7 @@ LINE 群組「氣氛組」機器人 — 主持小遊戲、炒熱聊天氣氛，A
 | Railway log 出現 401 / signature 相關錯誤 | 回步驟 2 重新複製一次 Channel secret，貼回步驟 5 的 `LINE_CHANNEL_SECRET`，注意不要多複製到前後空白 |
 | Railway log 出現 `Failed to handle LINE event` / Prisma 連不到資料庫 | 回步驟 4，確認 Node 服務的 `DATABASE_URL`／`REDIS_URL` 真的用 Reference 接到 Postgres/Redis 服務了，不是空的 |
 | Railway deploy 卡在 `prisma migrate deploy` 那一步 | 通常是資料庫變數還沒生效就跑了 migration，在 Deployments 分頁點 **Redeploy** 重跑一次 |
+| log 出現 `Could not parse schema engine response` 或 `Prisma failed to detect the libssl/openssl version` | Alpine 映像檔缺 OpenSSL 導致 Prisma 引擎啟動失敗；本專案 Dockerfile 已在 build/runtime 兩個 stage 加上 `apk add openssl` 並固定 `binaryTargets`，若還是遇到，確認你部署的是最新的 Dockerfile（重新 push 一次觸發 rebuild） |
 | 機器人加不進群組 | 回步驟 8，確認 **Allow bot to join group chats** 有打開 |
 
 ---

@@ -1,6 +1,7 @@
 // Prisma schema — see docs/ARCHITECTURE.md 第 3 節 ER 圖
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
