@@ -5,6 +5,7 @@ import { getLineClient } from "../line/client";
 import { logger } from "../utils/logger";
 import { upsertGroupFromEvent, upsertMemberFromEvent } from "../db/groupRepository";
 import { buildHelpText, buildPartyMenu, isPartyCommand } from "../line/partyMenu";
+import { withPartyQuickReply } from "../line/quickReply";
 import { cancelGame, handleGameMessage, startGame } from "../games/engine/sessionManager";
 
 const GREETING =
@@ -12,7 +13,7 @@ const GREETING =
   "想玩遊戲的話，隨時輸入「party」打開遊戲選單，我會陪大家嗨起來！";
 
 async function reply(replyToken: string, messages: messagingApi.Message[]): Promise<void> {
-  await getLineClient().replyMessage({ replyToken, messages });
+  await getLineClient().replyMessage({ replyToken, messages: withPartyQuickReply(messages) });
 }
 
 async function replyText(replyToken: string, text: string): Promise<void> {

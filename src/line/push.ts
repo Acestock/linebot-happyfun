@@ -1,6 +1,7 @@
 import { loadEnv } from "../config/env";
 import { getRedis } from "../redis/client";
 import { getLineClient } from "./client";
+import { withPartyQuickReply } from "./quickReply";
 import { logger } from "../utils/logger";
 
 /**
@@ -26,7 +27,7 @@ export async function pushTextWithLimit(lineGroupId: string, text: string): Prom
 
   await getLineClient().pushMessage({
     to: lineGroupId,
-    messages: [{ type: "text", text }],
+    messages: withPartyQuickReply([{ type: "text", text }]),
   });
   return true;
 }
