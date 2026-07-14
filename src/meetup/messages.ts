@@ -122,6 +122,7 @@ export function buildStatusText(params: {
   checkinCount: number;
   currentIcebreaker: string | null;
   interactionType: InteractionType | null;
+  missingCheckins?: { names: string[]; totalMissing: number } | null;
 }): string {
   const lines = [
     `目前小聚狀態\n`,
@@ -138,6 +139,43 @@ export function buildStatusText(params: {
   if (params.interactionType) {
     lines.push(`互動環節：${INTERACTION_TYPE_LABELS[params.interactionType]}`);
   }
+  if (params.missingCheckins && params.missingCheckins.totalMissing > 0) {
+    const { names, totalMissing } = params.missingCheckins;
+    const suffix = totalMissing > names.length ? ` 等共 ${totalMissing} 位` : "";
+    lines.push(`尚未簽到：${names.join("、")}${suffix}`);
+  }
+  return lines.join("\n");
+}
+
+export function buildReportText(params: {
+  name: string;
+  hostDisplayName: string;
+  durationMinutes: number;
+  checkinCount: number;
+  feedbackCounts: Record<string, number>;
+  topParticipant: { name: string; count: number } | null;
+  totalMessages: number;
+}): string {
+  const lines = [
+    `🎉 活動報告：${params.name}\n`,
+    `主辦人：${params.hostDisplayName}`,
+    `活動時長：約 ${params.durationMinutes} 分鐘`,
+    `簽到人數：${params.checkinCount} 人`,
+    `群組發言：${params.totalMessages} 則`,
+  ];
+  if (params.topParticipant) {
+    lines.push(`最熱烈參與：${params.topParticipant.name}（${params.topParticipant.count} 則）`);
+  }
+  const feedbackEntries = Object.entries(params.feedbackCounts);
+  if (feedbackEntries.length > 0) {
+    lines.push("", "回饋分佈：");
+    for (const [feedback, count] of feedbackEntries) {
+      lines.push(`　${feedback}：${count} 人`);
+    }
+  } else {
+    lines.push("", "尚無回饋");
+  }
+  lines.push("", "感謝主持與參與，期待下次見面 🎉");
   return lines.join("\n");
 }
 

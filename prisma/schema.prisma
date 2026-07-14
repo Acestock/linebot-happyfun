@@ -164,7 +164,13 @@ model Meetup {
   currentInteraction   String?      @map("current_interaction")
   usedInteractions     Json         @default("[]") @map("used_interactions")
 
+  /// 活動進行中（非 SETUP/READY/PAUSED/結束）每位成員的發言則數，key 是 GroupMember.id。
+  /// 不逐則回覆，純粹統計用，結束時做成報告卡的「熱度」與「最活躍」欄位。
+  messageCounts        Json         @default("{}") @map("message_counts")
+
   createdAt            DateTime     @default(now()) @map("created_at")
+  /// 每次 update() 都會自動刷新，閒置逾時排程用它判斷主辦人是不是忘了收尾
+  lastActivityAt        DateTime    @default(now()) @updatedAt @map("last_activity_at")
   startedAt            DateTime?    @map("started_at")
   endedAt              DateTime?    @map("ended_at")
 

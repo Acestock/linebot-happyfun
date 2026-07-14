@@ -29,7 +29,6 @@ import {
   ALREADY_ACTIVE_TEXT,
   CANCELLED_TEXT,
   CHECKIN_PROMPT_TEXT,
-  ENDED_THANKS_TEXT,
   FREE_TALK_TEXT,
   INTERACTION_SKIPPED_NONE_TEXT,
   NO_ACTIVE_MEETUP_TEXT,
@@ -43,6 +42,7 @@ import {
   buildInteractionText,
   buildInvalidAnswerText,
   buildOpeningText,
+  buildReportText,
   buildResumeText,
   buildSetupQuestionText,
   buildStatusText,
@@ -57,6 +57,13 @@ import {
   parseHostCommandFromText,
   type HostCommand,
 } from "./commands";
+import {
+  computeMissingCheckins,
+  computeTopEntry,
+  computeTotalMessages,
+  incrementMessageCount,
+  type MissingCheckins,
+} from "./stats";
 
 export type MeetupUiHint =
   | { type: "none" }
@@ -97,6 +104,17 @@ export type MeetupCardPayload =
       checkinCount: number;
       currentIcebreaker: string | null;
       interactionType: InteractionType | null;
+      missingCheckins: MissingCheckins | null;
+    }
+  | {
+      kind: "report";
+      name: string;
+      hostDisplayName: string;
+      durationMinutes: number;
+      checkinCount: number;
+      feedbackCounts: Record<string, number>;
+      topParticipant: { name: string; count: number } | null;
+      totalMessages: number;
     };
 
 export interface MeetupReply {
@@ -140,6 +158,48 @@ async function getHostDisplayName(meetup: Meetup): Promise<string> {
 
 async function getCheckinCount(meetupId: string): Promise<number> {
   return prisma.meetupCheckin.count({ where: { meetupId } });
+}
+
+/**
+ * 「未簽到名單」只看這個群組曾經活躍過的成員（GroupMember.messageCount > 0），
+ * 不是 LINE 官方成員清單——平台本來就不提供完整群組成員名單。
+ */
+async function getMissingCheckins(meetup: Meetup): Promise<MissingCheckins> {
+  const [activeMembers, checkins] = await Promise.all([
+    prisma.groupMember.findMany({
+      where: { groupId: meetup.groupId, messageCount: { gt: 0 } },
+      orderBy: { lastInteractedAt: "desc" },
+      select: { id: true, displayName: true },
+    }),
+    prisma.meetupCheckin.findMany({ where: { meetupId: meetup.id }, select: { memberId: true } }),
+  ]);
+  return computeMissingCheckins(
+    activeMembers,
+    checkins.map((c) => c.memberId),
+  );
+}
+
+async function getFeedbackBreakdown(meetupId: string): Promise<Record<string, number>> {
+  const rows = await prisma.meetupFeedback.findMany({ where: { meetupId }, select: { feedback: true } });
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    counts[row.feedback] = (counts[row.feedback] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * 活動進行中悄悄記錄每位成員的發言則數，純粹統計用（不逐則回覆），
+ * 結束時彙整成報告卡的「熱度」與「最活躍」欄位。SETUP/READY/結束狀態不計入。
+ */
+export async function recordActivity(groupId: string, memberId: string): Promise<void> {
+  const meetup = await getActiveMeetup(groupId);
+  if (!meetup) return;
+  if (meetup.phase === MeetupPhase.SETUP || meetup.phase === MeetupPhase.READY) return;
+
+  const counts = (meetup.messageCounts as Record<string, number> | null) ?? {};
+  const updated = incrementMessageCount(counts, memberId);
+  await prisma.meetup.update({ where: { id: meetup.id }, data: { messageCounts: updated } });
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +413,8 @@ async function enterPhase(
         where: { id: meetup.id },
         data: { phase, endedAt: new Date() },
       });
-      return { meetup: updated, text: ENDED_THANKS_TEXT };
+      const report = await buildReport(updated);
+      return { meetup: updated, text: report.text, card: report.card };
     }
     default:
       throw new Error(`enterPhase: unsupported target phase ${phase}`);
@@ -371,7 +432,7 @@ async function advancePhase(meetup: Meetup, mode: "next" | "skip"): Promise<Meet
   const prefix = mode === "skip" ? "⏭️ 已跳過本階段。\n\n" : "";
 
   if (updated.phase === MeetupPhase.ENDED) {
-    return { text: `${prefix}${text}`, ui: none() };
+    return { text: `${prefix}${text}`, ui: none(), card };
   }
   if (updated.phase === MeetupPhase.CLOSING) {
     return { text: `${prefix}${text}`, ui: { type: "closing" }, card };
@@ -458,19 +519,56 @@ async function endMeetup(meetup: Meetup): Promise<MeetupReply> {
   if (isTerminal(meetup.phase)) {
     return { text: "小聚已經結束囉。", ui: none() };
   }
-  if (meetup.phase === MeetupPhase.CLOSING) {
-    await prisma.meetup.update({
-      where: { id: meetup.id },
-      data: { phase: MeetupPhase.ENDED, endedAt: new Date() },
-    });
-    return { text: ENDED_THANKS_TEXT, ui: none() };
-  }
-  const checkinCount = await getCheckinCount(meetup.id);
-  await prisma.meetup.update({
+  const updated = await prisma.meetup.update({
     where: { id: meetup.id },
     data: { phase: MeetupPhase.ENDED, endedAt: new Date() },
   });
-  return { text: buildClosingSummary(checkinCount), ui: none() };
+  return buildReport(updated);
+}
+
+/** 結束小聚時的活動報告卡：簽到數、回饋分佈、群組發言熱度、最熱烈參與者。 */
+async function buildReport(meetup: Meetup): Promise<MeetupReply> {
+  const [hostDisplayName, checkinCount, feedbackCounts] = await Promise.all([
+    getHostDisplayName(meetup),
+    getCheckinCount(meetup.id),
+    getFeedbackBreakdown(meetup.id),
+  ]);
+
+  const messageCounts = (meetup.messageCounts as Record<string, number> | null) ?? {};
+  const totalMessages = computeTotalMessages(messageCounts);
+  const topEntry = computeTopEntry(messageCounts);
+  const topParticipant = topEntry
+    ? { name: (await prisma.groupMember.findUnique({ where: { id: topEntry.memberId } }))?.displayName ?? "神祕成員", count: topEntry.count }
+    : null;
+
+  const start = meetup.startedAt ?? meetup.createdAt;
+  const end = meetup.endedAt ?? new Date();
+  const durationMinutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+  const name = meetup.name ?? "（未命名小聚）";
+
+  const text = buildReportText({
+    name,
+    hostDisplayName,
+    durationMinutes,
+    checkinCount,
+    feedbackCounts,
+    topParticipant,
+    totalMessages,
+  });
+  return {
+    text,
+    ui: none(),
+    card: {
+      kind: "report",
+      name,
+      hostDisplayName,
+      durationMinutes,
+      checkinCount,
+      feedbackCounts,
+      topParticipant,
+      totalMessages,
+    },
+  };
 }
 
 async function cancelMeetup(meetup: Meetup): Promise<MeetupReply> {
@@ -557,6 +655,7 @@ async function buildStatus(meetup: Meetup): Promise<MeetupReply> {
     getHostDisplayName(meetup),
     getCheckinCount(meetup.id),
   ]);
+  const missingCheckins = meetup.phase === MeetupPhase.CHECKIN ? await getMissingCheckins(meetup) : null;
   const elapsedMinutes = meetup.startedAt
     ? Math.max(0, Math.round((Date.now() - meetup.startedAt.getTime()) / 60000))
     : 0;
@@ -573,6 +672,7 @@ async function buildStatus(meetup: Meetup): Promise<MeetupReply> {
     checkinCount,
     currentIcebreaker: meetup.currentIcebreaker,
     interactionType,
+    missingCheckins,
   });
   return {
     text,
@@ -588,6 +688,7 @@ async function buildStatus(meetup: Meetup): Promise<MeetupReply> {
       checkinCount,
       currentIcebreaker: meetup.currentIcebreaker,
       interactionType,
+      missingCheckins,
     },
   };
 }

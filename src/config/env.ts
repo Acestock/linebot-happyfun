@@ -26,6 +26,15 @@ const envSchema = z.object({
   GAME_TIMEOUT_MINUTES: z.coerce.number().default(10),
   GAME_TIMEOUT_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(2),
 
+  // 付費功能的可靠度保險絲：主辦人忘記結束小聚時自動收攤，預設開啟（跟 IDLE_NUDGE 不同，
+  // 這不是行銷性質的主動搭話，是避免群組的 party/遊戲功能被卡住忘記關閉）
+  MEETUP_IDLE_TIMEOUT_ENABLED: z
+    .string()
+    .default("true")
+    .transform((v) => v === "true"),
+  MEETUP_IDLE_TIMEOUT_MINUTES: z.coerce.number().default(180),
+  MEETUP_IDLE_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(15),
+
   INTERNAL_STATS_TOKEN: z.string().optional(),
   LIFF_ID: z.string().optional(),
 });

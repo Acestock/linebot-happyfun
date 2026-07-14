@@ -9,7 +9,13 @@ import { withPartyQuickReply, withQuickReply } from "../line/quickReply";
 import { buildMeetupQuickReply } from "../line/meetupQuickReply";
 import { buildMeetupCard } from "../line/meetupCards";
 import { cancelGame, handleGameMessage, startGame } from "../games/engine/sessionManager";
-import { handleMeetupPostback, handleMeetupText, hasActiveMeetup, type MeetupReply } from "../meetup/manager";
+import {
+  handleMeetupPostback,
+  handleMeetupText,
+  hasActiveMeetup,
+  recordActivity,
+  type MeetupReply,
+} from "../meetup/manager";
 
 const GREETING =
   "嗨嗨～我是這個群組的氣氛組🎉\n" +
@@ -113,8 +119,10 @@ async function handleEvent(event: webhook.Event): Promise<void> {
         return;
       }
 
-      // 小聚進行中：party 選單／遊戲整個暫停，懸浮按鈕才不會被小聚的主持面板搶走
+      // 小聚進行中：party 選單／遊戲整個暫停，懸浮按鈕才不會被小聚的主持面板搶走。
+      // 訊息本身不逐則回覆，只悄悄計入發言熱度，活動結束時彙整成報告卡。
       if (await hasActiveMeetup(group.id)) {
+        await recordActivity(group.id, member.id);
         return;
       }
     }

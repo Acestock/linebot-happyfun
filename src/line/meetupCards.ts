@@ -234,6 +234,11 @@ function buildStatusCard(p: Extract<MeetupCardPayload, { kind: "status" }>): Fle
   const extraRows: FlexBox[] = [];
   if (p.currentIcebreaker) extraRows.push(detailRow("目前破冰題", p.currentIcebreaker));
   if (p.interactionType) extraRows.push(detailRow("互動環節", INTERACTION_TYPE_LABELS[p.interactionType]));
+  if (p.missingCheckins && p.missingCheckins.totalMissing > 0) {
+    const { names, totalMissing } = p.missingCheckins;
+    const suffix = totalMissing > names.length ? ` 等共 ${totalMissing} 位` : "";
+    extraRows.push(detailRow("尚未簽到", `${names.join("、")}${suffix}`));
+  }
 
   return bubble(
     headerBox(COLOR.teal, `📊 ${p.name}`, `主辦人：${p.hostDisplayName}　${statusBadge}`),
@@ -251,6 +256,58 @@ function buildStatusCard(p: Extract<MeetupCardPayload, { kind: "status" }>): Fle
       { type: "separator", margin: "md" },
       { type: "text", text: "流程進度", weight: "bold", size: "sm", margin: "md" },
       ...progressRows,
+    ]),
+  );
+}
+
+const FEEDBACK_EMOJI: Record<string, string> = {
+  很喜歡: "👍",
+  還不錯: "🙂",
+  可以更好: "🤔",
+};
+
+function buildReportCard(p: Extract<MeetupCardPayload, { kind: "report" }>): FlexBox {
+  const feedbackEntries = Object.entries(p.feedbackCounts);
+
+  return bubble(
+    headerBox(COLOR.teal, "🎉 活動報告", p.name),
+    bodyBox([
+      detailRow("主辦人", p.hostDisplayName),
+      detailRow("活動時長", `約 ${p.durationMinutes} 分鐘`),
+      detailRow("簽到人數", `${p.checkinCount} 人`),
+      detailRow("群組發言", `${p.totalMessages} 則`),
+      ...(p.topParticipant
+        ? [
+            {
+              type: "box",
+              layout: "vertical",
+              alignItems: "center",
+              backgroundColor: COLOR.tealLight,
+              cornerRadius: "lg",
+              paddingAll: "12px",
+              margin: "md",
+              contents: [
+                { type: "text", text: "🔥 最熱烈參與", size: "xs", color: "#666666" },
+                { type: "text", text: p.topParticipant.name, size: "lg", weight: "bold", color: COLOR.teal, margin: "xs" },
+                { type: "text", text: `${p.topParticipant.count} 則發言`, size: "xs", color: "#666666" },
+              ],
+            } as FlexBox,
+          ]
+        : []),
+      { type: "separator", margin: "md" },
+      { type: "text", text: "回饋分佈", weight: "bold", size: "sm", margin: "md" },
+      ...(feedbackEntries.length > 0
+        ? feedbackEntries.map(
+            ([feedback, count]) =>
+              ({
+                type: "text",
+                text: `${FEEDBACK_EMOJI[feedback] ?? "💬"} ${feedback}：${count} 人`,
+                size: "sm",
+                color: "#555555",
+              }) as FlexBox,
+          )
+        : [{ type: "text", text: "尚無回饋", size: "sm", color: "#999999" } as FlexBox]),
+      { type: "text", text: "感謝主持與參與，期待下次見面 🎉", size: "xs", color: "#999999", margin: "md", wrap: true },
     ]),
   );
 }
@@ -287,6 +344,10 @@ export function buildMeetupCard(payload: MeetupCardPayload): messagingApi.Messag
     case "status":
       contents = buildStatusCard(payload);
       altText = "目前小聚狀態";
+      break;
+    case "report":
+      contents = buildReportCard(payload);
+      altText = "活動報告";
       break;
     default:
       return null;

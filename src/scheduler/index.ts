@@ -3,6 +3,7 @@ import { loadEnv } from "../config/env";
 import { logger } from "../utils/logger";
 import { sweepTimedOutGames } from "./gameTimeout";
 import { sweepIdleGroups } from "./idleNudge";
+import { sweepIdleMeetups } from "./meetupTimeout";
 
 function everyNMinutes(n: number): string {
   const clamped = Math.min(Math.max(Math.round(n), 1), 59);
@@ -24,10 +25,18 @@ export function startSchedulers(): void {
     });
   }
 
+  // 小聚閒置逾時預設開啟：主辦人忘記結束會卡住整個群組的 party/遊戲功能，這是可靠度保險絲
+  if (env.MEETUP_IDLE_TIMEOUT_ENABLED) {
+    cron.schedule(everyNMinutes(env.MEETUP_IDLE_SWEEP_INTERVAL_MINUTES), () => {
+      sweepIdleMeetups().catch((err) => logger.error({ err }, "meetup idle sweep failed"));
+    });
+  }
+
   logger.info(
     {
       gameTimeoutEveryMin: env.GAME_TIMEOUT_SWEEP_INTERVAL_MINUTES,
       idleNudgeEnabled: env.IDLE_NUDGE_ENABLED,
+      meetupIdleTimeoutEnabled: env.MEETUP_IDLE_TIMEOUT_ENABLED,
     },
     "schedulers started",
   );
