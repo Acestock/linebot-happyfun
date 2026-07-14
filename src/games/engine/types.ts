@@ -8,6 +8,7 @@ export type GameState = Record<string, unknown>;
 
 export interface MoveResult {
   nextState: GameState;
+  /** 確定性的回覆文字；有 aiContext 時作為 LLM 失敗的 fallback */
   replyText: string;
   finished: boolean;
   /** DB member id of the winner, only when finished */
@@ -16,6 +17,8 @@ export interface MoveResult {
   recordMove: boolean;
   movePayload?: Record<string, unknown>;
   moveOutcome?: Record<string, unknown>;
+  /** 提供時，session manager 會用 LLM 以此情境改寫 replyText（人設文案） */
+  aiContext?: Record<string, unknown>;
 }
 
 export interface GameDefinition {
@@ -24,8 +27,13 @@ export interface GameDefinition {
   emoji: string;
   shortDescription: string;
 
-  /** 開一局：回傳初始狀態與開場文案 */
-  createInitialState(): { state: GameState; openingText: string; config: Record<string, unknown> };
+  /** 開一局：回傳初始狀態與開場文案（openingText 同時是 LLM 的 fallback） */
+  createInitialState(): {
+    state: GameState;
+    openingText: string;
+    config: Record<string, unknown>;
+    aiContext?: Record<string, unknown>;
+  };
 
   /** 嘗試把一則群組訊息解析成本遊戲的操作；不是操作就回 null（保持沉默） */
   parseMove(text: string): Record<string, unknown> | null;

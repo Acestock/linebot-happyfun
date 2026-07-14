@@ -4,7 +4,9 @@ LINE 群組「氣氛組」機器人 — 主持小遊戲、炒熱聊天氣氛，A
 
 架構規劃與設計理由請見 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。本 README 只涵蓋「如何跑起來」。
 
-目前進度：**Phase 2 — party 遊戲選單 + 終極密碼**。AI 文案生成（Phase 3）、主動排程（Phase 4）尚未實作。
+目前進度：**Phase 3 — AI 主持人文案（GPT-4o）**。主動排程（Phase 4）尚未實作。
+
+開場白、獲勝宣布、中止收尾由 GPT-4o 以「阿密」人設即時生成（附防護規則與長度限制）；每次猜測的太大/太小提示維持即時固定文案（不耗 API、零延遲）。**沒有設定 `OPENAI_API_KEY` 時自動使用內建文案**，遊戲功能完全不受影響。要啟用 AI 文案，在 Railway Variables 加上 `OPENAI_API_KEY`（[OpenAI Platform](https://platform.openai.com/api-keys) 申請）。
 
 ## 怎麼玩
 

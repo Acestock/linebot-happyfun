@@ -10,8 +10,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   REDIS_URL: z.string().min(1, "REDIS_URL is required"),
 
-  LLM_PROVIDER: z.enum(["anthropic"]).default("anthropic"),
-  LLM_MODEL: z.string().default("claude-haiku-4-5"),
+  LLM_PROVIDER: z.enum(["openai", "anthropic"]).default("openai"),
+  LLM_MODEL: z.string().default("gpt-4o"),
+  OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
 
   PUSH_RATE_LIMIT_PER_GROUP_PER_HOUR: z.coerce.number().default(2),

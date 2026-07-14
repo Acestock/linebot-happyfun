@@ -26,6 +26,11 @@ export const guessNumberGame: GameDefinition = {
         `🎮 終極密碼開局！\n` +
         `我已經想好一個 ${state.min}~${state.max} 之間的數字，` +
         `直接在群組輸入數字就可以猜，猜中的人獲勝🏆`,
+      aiContext: {
+        遊戲: "終極密碼（猜數字）",
+        範圍: `${state.min}~${state.max}`,
+        玩法: "在群組直接輸入數字猜，主持人提示太大或太小，猜中的人獲勝",
+      },
     };
   },
 
@@ -77,6 +82,11 @@ export const guessNumberGame: GameDefinition = {
             `🎉 賓果！答案就是 ${guess}！\n` +
             `本局共猜了 ${outcome.attempts} 次，恭喜獲勝🏆\n` +
             `輸入 party 隨時再開一局～`,
+          aiContext: {
+            遊戲: "終極密碼（猜數字）",
+            答案: guess,
+            全場總猜測次數: outcome.attempts,
+          },
         };
     }
   },
