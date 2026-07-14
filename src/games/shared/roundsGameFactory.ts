@@ -10,6 +10,7 @@ import {
   type RoundsState,
 } from "./rounds";
 import { generateRounds } from "./questionGen";
+import { getRecentQuestions, recordQuestions } from "./questionHistory";
 
 function asState(state: GameState): RoundsState {
   return state as unknown as RoundsState;
@@ -25,14 +26,25 @@ export interface RoundsGameOptions {
   roundCount: number;
   generationPrompt: string;
   fallbackBank: Round[];
+  /** 隨機挑幾個塞進出題 prompt，逼 AI 別每次都想到同一批經典題 */
+  categoryPool?: string[];
   /** 每題開場/公布下一題時要怎麼呈現題目文字（例如加不加「題目：」前綴） */
   formatQuestion: (question: string, roundNumber: number, total: number) => string;
   openingIntro: string;
   resultIntent?: CopyIntent;
 }
 
-function pickRounds(bank: Round[], count: number): Round[] {
-  const shuffled = [...bank].sort(() => Math.random() - 0.5);
+export function pickCategoryHint(pool: string[] | undefined): string | undefined {
+  if (!pool || pool.length === 0) return undefined;
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(3, shuffled.length)).join("、");
+}
+
+/** 優先挑最近沒出過的題目；扣掉重複後題庫不夠再放寬允許重複，遊戲永遠開得起來 */
+export function pickRounds(bank: Round[], count: number, avoid: Set<string>): Round[] {
+  const fresh = bank.filter((r) => !avoid.has(r.question));
+  const pool = fresh.length >= count ? fresh : bank;
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
 
@@ -47,10 +59,21 @@ export function createRoundsGame(options: RoundsGameOptions): GameDefinition {
     emoji: options.emoji,
     shortDescription: options.shortDescription,
 
-    async createInitialState(): Promise<InitialState> {
-      const generated = await generateRounds(options.generationPrompt, options.roundCount);
-      const rounds = generated ?? pickRounds(options.fallbackBank, options.roundCount);
+    async createInitialState(groupId: string): Promise<InitialState> {
+      const recentlyAsked = await getRecentQuestions(groupId, options.gameType);
+      const generated = await generateRounds(options.generationPrompt, options.roundCount, {
+        categoryHint: pickCategoryHint(options.categoryPool),
+        avoidQuestions: recentlyAsked,
+      });
+      const rounds =
+        generated ?? pickRounds(options.fallbackBank, options.roundCount, new Set(recentlyAsked));
       const state = createRoundsState(rounds);
+
+      void recordQuestions(
+        groupId,
+        options.gameType,
+        rounds.map((r) => r.question),
+      );
 
       return {
         state,

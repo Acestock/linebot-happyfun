@@ -16,6 +16,8 @@ export interface GenerateInput {
   maxTokens?: number;
   /** 預設 4000ms */
   timeoutMs?: number;
+  /** 預設 0.9；出題想要更多樣可以調高 */
+  temperature?: number;
 }
 
 export interface LLMClient {

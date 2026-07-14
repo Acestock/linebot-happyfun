@@ -47,8 +47,9 @@ export interface GameDefinition {
   /**
    * 開一局：回傳初始狀態與開場文案（openingText 同時是 LLM 的 fallback）。
    * 可以是 async——例如需要先用 LLM 生成整組題目再開局的遊戲。
+   * groupId 讓遊戲能記住「這個群組最近出過什麼」，避免重複出題。
    */
-  createInitialState(): InitialState | Promise<InitialState>;
+  createInitialState(groupId: string): InitialState | Promise<InitialState>;
 
   /** 嘗試把一則群組訊息解析成本遊戲的操作；不是操作就回 null（保持沉默） */
   parseMove(text: string): Record<string, unknown> | null;

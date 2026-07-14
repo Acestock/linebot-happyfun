@@ -3,6 +3,7 @@ import type { GenerateInput, LLMClient } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 4000;
 const DEFAULT_MAX_TOKENS = 200;
+const DEFAULT_TEMPERATURE = 0.9;
 
 export class OpenAIClient implements LLMClient {
   async generate(input: GenerateInput): Promise<string> {
@@ -24,7 +25,7 @@ export class OpenAIClient implements LLMClient {
         },
         body: JSON.stringify({
           model: env.LLM_MODEL,
-          temperature: 0.9,
+          temperature: input.temperature ?? DEFAULT_TEMPERATURE,
           max_tokens: input.maxTokens ?? DEFAULT_MAX_TOKENS,
           messages: [
             { role: "system", content: input.systemPrompt },
