@@ -1,4 +1,11 @@
-export type CopyIntent = "opening" | "result" | "cancel" | "idle_nudge";
+export type CopyIntent =
+  | "opening"
+  | "result"
+  | "cancel"
+  | "idle_nudge"
+  | "topic_opening"
+  | "topic_chime"
+  | "topic_summary";
 
 export interface GenerateInput {
   systemPrompt: string;

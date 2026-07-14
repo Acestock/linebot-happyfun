@@ -6,10 +6,12 @@
 
 export type GameState = Record<string, unknown>;
 
+import type { CopyIntent } from "../../persona/types";
+
 export interface MoveResult {
   nextState: GameState;
-  /** 確定性的回覆文字；有 aiContext 時作為 LLM 失敗的 fallback */
-  replyText: string;
+  /** 確定性的回覆文字；null 表示保持沉默。有 aiContext 時作為 LLM 失敗的 fallback */
+  replyText: string | null;
   finished: boolean;
   /** DB member id of the winner, only when finished */
   winnerMemberId?: string;
@@ -19,6 +21,13 @@ export interface MoveResult {
   moveOutcome?: Record<string, unknown>;
   /** 提供時，session manager 會用 LLM 以此情境改寫 replyText（人設文案） */
   aiContext?: Record<string, unknown>;
+  /** aiContext 對應的文案意圖；未指定且 finished 時預設 "result" */
+  aiIntent?: CopyIntent;
+}
+
+export interface MoveContext {
+  memberId: string;
+  memberName: string | null;
 }
 
 export interface GameDefinition {
@@ -33,13 +42,14 @@ export interface GameDefinition {
     openingText: string;
     config: Record<string, unknown>;
     aiContext?: Record<string, unknown>;
+    aiIntent?: CopyIntent;
   };
 
   /** 嘗試把一則群組訊息解析成本遊戲的操作；不是操作就回 null（保持沉默） */
   parseMove(text: string): Record<string, unknown> | null;
 
   /** 套用一步操作 */
-  applyMove(state: GameState, move: Record<string, unknown>, ctx: { memberId: string }): MoveResult;
+  applyMove(state: GameState, move: Record<string, unknown>, ctx: MoveContext): MoveResult;
 
   /** 中途取消時的收場文案 */
   cancelText(state: GameState): string;

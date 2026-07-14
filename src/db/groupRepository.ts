@@ -10,7 +10,8 @@ export async function upsertGroupFromEvent(event: webhook.Event) {
   return prisma.group.upsert({
     where: { lineGroupId: source.groupId },
     create: { lineGroupId: source.groupId },
-    update: {},
+    // 重新被拉回群組時恢復活躍狀態
+    update: event.type === "join" ? { isActive: true } : {},
   });
 }
 

@@ -34,6 +34,15 @@ async function handleEvent(event: webhook.Event): Promise<void> {
     return;
   }
 
+  if (event.type === "leave") {
+    // 被踢出/群組解散：標記不活躍，排程不再對它推播
+    const { prisma } = await import("../db/prisma");
+    await prisma.group
+      .update({ where: { id: group.id }, data: { isActive: false } })
+      .catch((err) => logger.warn({ err }, "failed to mark group inactive"));
+    return;
+  }
+
   if (event.type === "postback" && event.replyToken) {
     const data = parsePostbackData(event.postback.data);
     switch (data.action) {
@@ -64,7 +73,7 @@ async function handleEvent(event: webhook.Event): Promise<void> {
     }
 
     if (member) {
-      const gameReply = await handleGameMessage(group.id, member.id, text);
+      const gameReply = await handleGameMessage(group.id, member.id, member.displayName, text);
       if (gameReply) {
         await replyText(event.replyToken, gameReply);
       }

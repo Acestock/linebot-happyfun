@@ -32,6 +32,9 @@ async function main() {
     // or wedged Prisma CLI can never block startup or the healthcheck.
     const { runMigrationsInBackground } = require("./db/migrate") as typeof import("./db/migrate");
     runMigrationsInBackground();
+
+    const { startSchedulers } = require("./scheduler") as typeof import("./scheduler");
+    startSchedulers();
   });
 
   server.on("error", (err) => {

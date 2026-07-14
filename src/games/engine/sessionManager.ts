@@ -51,7 +51,7 @@ export async function startGame(
       : "已經有一局遊戲在進行中囉！";
   }
 
-  const { state, openingText, config, aiContext } = game.createInitialState();
+  const { state, openingText, config, aiContext, aiIntent } = game.createInitialState();
   const session = await prisma.gameSession.create({
     data: {
       groupId,
@@ -65,7 +65,7 @@ export async function startGame(
   await saveActive(groupId, { sessionId: session.id, gameType, state });
 
   if (aiContext) {
-    return generateCopy("opening", aiContext, openingText, groupId);
+    return generateCopy(aiIntent ?? "opening", aiContext, openingText, groupId);
   }
   return openingText;
 }
@@ -76,6 +76,7 @@ export async function startGame(
 export async function handleGameMessage(
   groupId: string,
   memberId: string,
+  memberName: string | null,
   text: string,
 ): Promise<string | null> {
   const active = await getActive(groupId);
@@ -90,7 +91,7 @@ export async function handleGameMessage(
   const move = game.parseMove(text);
   if (!move) return null;
 
-  const result = game.applyMove(active.state, move, { memberId });
+  const result = game.applyMove(active.state, move, { memberId, memberName });
 
   if (result.recordMove) {
     const nextState = result.nextState as { attempts?: number };
@@ -110,32 +111,37 @@ export async function handleGameMessage(
   if (result.finished) {
     await clearActive(groupId);
     await finishSession(active.sessionId, result.nextState, result.winnerMemberId ?? null);
-
-    if (result.aiContext) {
-      const context = { ...result.aiContext };
-      if (result.winnerMemberId) {
-        const winner = await prisma.groupMember
-          .findUnique({ where: { id: result.winnerMemberId } })
-          .catch(() => null);
-        const winnerName = winner?.displayName ?? "神祕玩家";
-        context["贏家"] = winnerName;
-        context["贏家個人猜測次數"] =
-          ((result.nextState.guessesByMember ?? {}) as Record<string, number>)[
-            result.winnerMemberId
-          ] ?? 0;
-
-        // 群組記憶：慢慢累積這個群的戰績，之後的文案會越來越「認識這群人」
-        void rememberFact(
-          groupId,
-          "game_stats",
-          "上次終極密碼贏家",
-          `${winnerName}，全場共猜 ${String(result.aiContext["全場總猜測次數"] ?? "?")} 次`,
-        );
-      }
-      return generateCopy("result", context, result.replyText, groupId);
-    }
   } else {
     await saveActive(groupId, { ...active, state: result.nextState });
+  }
+
+  if (result.aiContext && result.replyText !== null) {
+    const context = { ...result.aiContext };
+    if (result.finished && result.winnerMemberId) {
+      const winner = await prisma.groupMember
+        .findUnique({ where: { id: result.winnerMemberId } })
+        .catch(() => null);
+      const winnerName = winner?.displayName ?? "神祕玩家";
+      context["贏家"] = winnerName;
+      context["贏家個人猜測次數"] =
+        ((result.nextState.guessesByMember ?? {}) as Record<string, number>)[
+          result.winnerMemberId
+        ] ?? 0;
+
+      // 群組記憶：慢慢累積這個群的戰績，之後的文案會越來越「認識這群人」
+      void rememberFact(
+        groupId,
+        "game_stats",
+        `上次${game.displayName}贏家`,
+        `${winnerName}，全場共猜 ${String(result.aiContext["全場總猜測次數"] ?? "?")} 次`,
+      );
+    }
+    return generateCopy(
+      result.aiIntent ?? "result",
+      context,
+      result.replyText,
+      groupId,
+    );
   }
 
   return result.replyText;
