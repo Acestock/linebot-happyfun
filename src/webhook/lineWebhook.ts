@@ -7,8 +7,9 @@ import { upsertGroupFromEvent, upsertMemberFromEvent } from "../db/groupReposito
 import { buildHelpText, buildPartyMenu, isPartyCommand } from "../line/partyMenu";
 import { withPartyQuickReply, withQuickReply } from "../line/quickReply";
 import { buildMeetupQuickReply } from "../line/meetupQuickReply";
+import { buildMeetupCard } from "../line/meetupCards";
 import { cancelGame, handleGameMessage, startGame } from "../games/engine/sessionManager";
-import { handleMeetupPostback, handleMeetupText } from "../meetup/manager";
+import { handleMeetupPostback, handleMeetupText, type MeetupReply } from "../meetup/manager";
 
 const GREETING =
   "嗨嗨～我是這個群組的氣氛組🎉\n" +
@@ -34,6 +35,17 @@ async function replyText(
 
 function parsePostbackData(data: string): Record<string, string> {
   return Object.fromEntries(new URLSearchParams(data));
+}
+
+/** 小聚回覆：有卡片資料就送 Flex 卡片（高光時刻），沒有就送純文字（快問快答維持輕量） */
+async function replyMeetup(replyToken: string, result: MeetupReply): Promise<void> {
+  const quickReply = buildMeetupQuickReply(result.ui);
+  const card = result.card ? buildMeetupCard(result.card) : null;
+  if (card) {
+    await reply(replyToken, [card], quickReply);
+  } else {
+    await replyText(replyToken, result.text, quickReply);
+  }
 }
 
 async function handleEvent(event: webhook.Event): Promise<void> {
@@ -62,7 +74,7 @@ async function handleEvent(event: webhook.Event): Promise<void> {
     if (data.action === "meetup" && member) {
       const result = await handleMeetupPostback(group.id, member, data.cmd ?? "");
       if (result) {
-        await replyText(event.replyToken, result.text, buildMeetupQuickReply(result.ui));
+        await replyMeetup(event.replyToken, result);
       }
       return;
     }
@@ -92,7 +104,7 @@ async function handleEvent(event: webhook.Event): Promise<void> {
     if (member) {
       const meetupReply = await handleMeetupText(group.id, member, text);
       if (meetupReply) {
-        await replyText(event.replyToken, meetupReply.text, buildMeetupQuickReply(meetupReply.ui));
+        await replyMeetup(event.replyToken, meetupReply);
         return;
       }
     }

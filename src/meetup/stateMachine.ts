@@ -10,7 +10,7 @@ import { MeetupPhase } from "@prisma/client";
  */
 
 /** 活動正式開始後、可以被「下一步/跳過」推進的階段，順序即流程順序 */
-const FLOW: MeetupPhase[] = [
+export const MEETUP_FLOW: MeetupPhase[] = [
   MeetupPhase.OPENING,
   MeetupPhase.CHECKIN,
   MeetupPhase.ICEBREAKER,
@@ -39,7 +39,7 @@ export function phaseLabel(phase: MeetupPhase): string {
 
 /** 這個階段是不是「活動正式開始後、可以推進」的階段（不含 PAUSED/SETUP/READY/ENDED/CANCELLED） */
 export function isProgressable(phase: MeetupPhase): boolean {
-  return FLOW.includes(phase);
+  return MEETUP_FLOW.includes(phase);
 }
 
 /**
@@ -48,15 +48,15 @@ export function isProgressable(phase: MeetupPhase): boolean {
  * 傳入不可推進的階段回傳 null，呼叫端要自行擋下。
  */
 export function nextPhaseAfter(phase: MeetupPhase): MeetupPhase | null {
-  const idx = FLOW.indexOf(phase);
+  const idx = MEETUP_FLOW.indexOf(phase);
   if (idx === -1) return null;
-  if (idx === FLOW.length - 1) return MeetupPhase.ENDED;
-  return FLOW[idx + 1];
+  if (idx === MEETUP_FLOW.length - 1) return MeetupPhase.ENDED;
+  return MEETUP_FLOW[idx + 1];
 }
 
 /** 可以暫停的階段：活動已經開始、還沒結束/取消/暫停 */
 export function canPause(phase: MeetupPhase): boolean {
-  return FLOW.includes(phase);
+  return MEETUP_FLOW.includes(phase);
 }
 
 /** 可以更換題目的階段：只有破冰、互動兩個階段有「題目」這個概念 */

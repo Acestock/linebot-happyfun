@@ -8,7 +8,13 @@ import {
   nextPhaseAfter,
   phaseLabel,
 } from "./stateMachine";
-import { pickIcebreaker, pickInteractionPrompt, type IcebreakerCategory, type InteractionType } from "./questionBanks";
+import {
+  INTERACTION_TYPE_LABELS,
+  pickIcebreaker,
+  pickInteractionPrompt,
+  type IcebreakerCategory,
+  type InteractionType,
+} from "./questionBanks";
 import {
   FIRST_SETUP_STEP,
   nextSetupStep,
@@ -60,9 +66,44 @@ export type MeetupUiHint =
   | { type: "checkin" }
   | { type: "closing" };
 
+/**
+ * 「高光時刻」的結構化資料 — 純資料，不含任何 LINE 型別，讓 manager.ts 保持可單元測試。
+ * 實際怎麼畫成 Flex 卡片是 src/line/meetupCards.ts 的事。只有這幾個時刻才給卡片，
+ * 其餘（設定精靈問答、簽到/回饋確認、暫停/繼續…）維持輕量純文字，問答節奏才不會被拖慢。
+ */
+export type MeetupCardPayload =
+  | {
+      kind: "created";
+      name: string;
+      hostDisplayName: string;
+      plannedMinutes: number;
+      hostStyle: string;
+      icebreakerCategory: IcebreakerCategory;
+      interactionType: InteractionType;
+    }
+  | { kind: "opening"; name: string; plannedMinutes: number; interactionType: InteractionType }
+  | { kind: "checkin" }
+  | { kind: "icebreaker"; question: string; changed?: boolean }
+  | { kind: "interaction"; prompt: string; typeLabel: string; changed?: boolean }
+  | { kind: "closing"; checkinCount: number }
+  | {
+      kind: "status";
+      name: string;
+      hostDisplayName: string;
+      phase: MeetupPhase;
+      pausedFromPhase: MeetupPhase | null;
+      elapsedMinutes: number;
+      plannedMinutes: number | null;
+      checkinCount: number;
+      currentIcebreaker: string | null;
+      interactionType: InteractionType | null;
+    };
+
 export interface MeetupReply {
+  /** 純文字版本：沒有卡片時直接發送；有卡片時當 Flex 的 altText */
   text: string;
   ui: MeetupUiHint;
+  card?: MeetupCardPayload;
 }
 
 interface MemberIdentity {
@@ -195,15 +236,25 @@ async function finishSetup(meetup: Meetup, lastStepData: Record<string, unknown>
     data: { ...lastStepData, setupStep: null, phase: MeetupPhase.READY },
   });
   const hostDisplayName = await getHostDisplayName(updated);
+  const plannedMinutes = updated.plannedMinutes ?? 60;
+  const hostStyle = updated.hostStyle ?? "輕鬆";
+  const icebreakerCategory = (updated.icebreakerCategory as IcebreakerCategory) ?? "random";
+  const interactionType = (updated.interactionType as InteractionType) ?? "none";
+  const name = updated.name ?? "（未命名小聚）";
+
   const text = buildCreationConfirmation({
-    name: updated.name ?? "（未命名小聚）",
+    name,
     hostDisplayName,
-    plannedMinutes: updated.plannedMinutes ?? 60,
-    hostStyle: updated.hostStyle ?? "輕鬆",
-    icebreakerCategory: (updated.icebreakerCategory as IcebreakerCategory) ?? "random",
-    interactionType: (updated.interactionType as InteractionType) ?? "none",
+    plannedMinutes,
+    hostStyle,
+    icebreakerCategory,
+    interactionType,
   });
-  return { text, ui: { type: "ready" } };
+  return {
+    text,
+    ui: { type: "ready" },
+    card: { kind: "created", name, hostDisplayName, plannedMinutes, hostStyle, icebreakerCategory, interactionType },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -218,19 +269,25 @@ async function startMeetup(meetup: Meetup): Promise<MeetupReply> {
     where: { id: meetup.id },
     data: { phase: MeetupPhase.OPENING, startedAt: new Date() },
   });
-  const text = buildOpeningText({
-    name: updated.name ?? "小聚",
-    plannedMinutes: updated.plannedMinutes ?? 60,
-    interactionType: (updated.interactionType as InteractionType) ?? "none",
-  });
-  return { text, ui: { type: "host_controls", phase: MeetupPhase.OPENING } };
+  const name = updated.name ?? "小聚";
+  const plannedMinutes = updated.plannedMinutes ?? 60;
+  const interactionType = (updated.interactionType as InteractionType) ?? "none";
+  const text = buildOpeningText({ name, plannedMinutes, interactionType });
+  return {
+    text,
+    ui: { type: "host_controls", phase: MeetupPhase.OPENING },
+    card: { kind: "opening", name, plannedMinutes, interactionType },
+  };
 }
 
-async function enterPhase(meetup: Meetup, phase: MeetupPhase): Promise<{ meetup: Meetup; text: string }> {
+async function enterPhase(
+  meetup: Meetup,
+  phase: MeetupPhase,
+): Promise<{ meetup: Meetup; text: string; card?: MeetupCardPayload }> {
   switch (phase) {
     case MeetupPhase.CHECKIN: {
       const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase } });
-      return { meetup: updated, text: CHECKIN_PROMPT_TEXT };
+      return { meetup: updated, text: CHECKIN_PROMPT_TEXT, card: { kind: "checkin" } };
     }
     case MeetupPhase.ICEBREAKER: {
       const category = (meetup.icebreakerCategory as IcebreakerCategory) ?? "random";
@@ -240,7 +297,11 @@ async function enterPhase(meetup: Meetup, phase: MeetupPhase): Promise<{ meetup:
         where: { id: meetup.id },
         data: { phase, currentIcebreaker: question, usedIcebreakers: [...used, question] },
       });
-      return { meetup: updated, text: buildIcebreakerText(question) };
+      return {
+        meetup: updated,
+        text: buildIcebreakerText(question),
+        card: { kind: "icebreaker", question },
+      };
     }
     case MeetupPhase.INTERACTION: {
       const type = (meetup.interactionType as InteractionType) ?? "none";
@@ -255,11 +316,16 @@ async function enterPhase(meetup: Meetup, phase: MeetupPhase): Promise<{ meetup:
       const used = Array.isArray(meetup.usedInteractions) ? (meetup.usedInteractions as string[]) : [];
       const drawn = pickInteractionPrompt(type, used);
       const prompt = drawn?.prompt ?? "分享一件最近覺得有趣的小事吧！";
+      const resolvedType = drawn?.resolvedType ?? type;
       const updated = await prisma.meetup.update({
         where: { id: meetup.id },
         data: { phase, currentInteraction: prompt, usedInteractions: [...used, prompt] },
       });
-      return { meetup: updated, text: buildInteractionText(prompt) };
+      return {
+        meetup: updated,
+        text: buildInteractionText(prompt),
+        card: { kind: "interaction", prompt, typeLabel: INTERACTION_TYPE_LABELS[resolvedType] },
+      };
     }
     case MeetupPhase.FREE_TALK: {
       const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase } });
@@ -268,7 +334,11 @@ async function enterPhase(meetup: Meetup, phase: MeetupPhase): Promise<{ meetup:
     case MeetupPhase.CLOSING: {
       const checkinCount = await getCheckinCount(meetup.id);
       const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase } });
-      return { meetup: updated, text: buildClosingSummary(checkinCount) };
+      return {
+        meetup: updated,
+        text: buildClosingSummary(checkinCount),
+        card: { kind: "closing", checkinCount },
+      };
     }
     case MeetupPhase.ENDED: {
       const updated = await prisma.meetup.update({
@@ -289,19 +359,19 @@ async function advancePhase(meetup: Meetup, mode: "next" | "skip"): Promise<Meet
   const target = nextPhaseAfter(meetup.phase);
   if (target === null) return { text: "目前已經是最後階段了。", ui: none() };
 
-  const { meetup: updated, text } = await enterPhase(meetup, target);
+  const { meetup: updated, text, card } = await enterPhase(meetup, target);
   const prefix = mode === "skip" ? "⏭️ 已跳過本階段。\n\n" : "";
 
   if (updated.phase === MeetupPhase.ENDED) {
     return { text: `${prefix}${text}`, ui: none() };
   }
   if (updated.phase === MeetupPhase.CLOSING) {
-    return { text: `${prefix}${text}`, ui: { type: "closing" } };
+    return { text: `${prefix}${text}`, ui: { type: "closing" }, card };
   }
   if (updated.phase === MeetupPhase.CHECKIN) {
-    return { text: `${prefix}${text}`, ui: { type: "checkin" } };
+    return { text: `${prefix}${text}`, ui: { type: "checkin" }, card };
   }
-  return { text: `${prefix}${text}`, ui: { type: "host_controls", phase: updated.phase } };
+  return { text: `${prefix}${text}`, ui: { type: "host_controls", phase: updated.phase }, card };
 }
 
 async function changeQuestion(meetup: Meetup): Promise<MeetupReply> {
@@ -326,6 +396,7 @@ async function changeQuestion(meetup: Meetup): Promise<MeetupReply> {
     return {
       text: `🔄 換題目！\n\n${buildIcebreakerText(question)}`,
       ui: { type: "host_controls", phase: meetup.phase },
+      card: { kind: "icebreaker", question, changed: true },
     };
   }
 
@@ -340,6 +411,7 @@ async function changeQuestion(meetup: Meetup): Promise<MeetupReply> {
   const used = Array.isArray(meetup.usedInteractions) ? (meetup.usedInteractions as string[]) : [];
   const drawn = pickInteractionPrompt(type, used);
   const prompt = drawn?.prompt ?? "分享一件最近覺得有趣的小事吧！";
+  const resolvedType = drawn?.resolvedType ?? type;
   await prisma.meetup.update({
     where: { id: meetup.id },
     data: { currentInteraction: prompt, usedInteractions: [...used, prompt] },
@@ -347,6 +419,7 @@ async function changeQuestion(meetup: Meetup): Promise<MeetupReply> {
   return {
     text: `🔄 換題目！\n\n${buildInteractionText(prompt)}`,
     ui: { type: "host_controls", phase: meetup.phase },
+    card: { kind: "interaction", prompt, typeLabel: INTERACTION_TYPE_LABELS[resolvedType], changed: true },
   };
 }
 
@@ -472,17 +545,35 @@ async function buildStatus(meetup: Meetup): Promise<MeetupReply> {
     ? Math.max(0, Math.round((Date.now() - meetup.startedAt.getTime()) / 60000))
     : 0;
 
+  const name = meetup.name ?? "（未命名小聚）";
+  const interactionType = (meetup.interactionType as InteractionType) ?? null;
+
   const text = buildStatusText({
-    name: meetup.name ?? "（未命名小聚）",
+    name,
     hostDisplayName,
     phase: meetup.phase,
     elapsedMinutes,
     plannedMinutes: meetup.plannedMinutes,
     checkinCount,
     currentIcebreaker: meetup.currentIcebreaker,
-    interactionType: (meetup.interactionType as InteractionType) ?? null,
+    interactionType,
   });
-  return { text, ui: none() };
+  return {
+    text,
+    ui: none(),
+    card: {
+      kind: "status",
+      name,
+      hostDisplayName,
+      phase: meetup.phase,
+      pausedFromPhase: meetup.pausedFromPhase,
+      elapsedMinutes,
+      plannedMinutes: meetup.plannedMinutes,
+      checkinCount,
+      currentIcebreaker: meetup.currentIcebreaker,
+      interactionType,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
