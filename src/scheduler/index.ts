@@ -17,14 +17,17 @@ export function startSchedulers(): void {
     sweepTimedOutGames().catch((err) => logger.error({ err }, "game timeout sweep failed"));
   });
 
-  cron.schedule(everyNMinutes(env.IDLE_NUDGE_SWEEP_INTERVAL_MINUTES), () => {
-    sweepIdleGroups().catch((err) => logger.error({ err }, "idle nudge sweep failed"));
-  });
+  // 閒置主動互動預設關閉（IDLE_NUDGE_ENABLED=true 才開），互動一律由 party 觸發
+  if (env.IDLE_NUDGE_ENABLED) {
+    cron.schedule(everyNMinutes(env.IDLE_NUDGE_SWEEP_INTERVAL_MINUTES), () => {
+      sweepIdleGroups().catch((err) => logger.error({ err }, "idle nudge sweep failed"));
+    });
+  }
 
   logger.info(
     {
       gameTimeoutEveryMin: env.GAME_TIMEOUT_SWEEP_INTERVAL_MINUTES,
-      idleNudgeEveryMin: env.IDLE_NUDGE_SWEEP_INTERVAL_MINUTES,
+      idleNudgeEnabled: env.IDLE_NUDGE_ENABLED,
     },
     "schedulers started",
   );

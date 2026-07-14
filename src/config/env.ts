@@ -18,6 +18,11 @@ const envSchema = z.object({
   PUSH_RATE_LIMIT_PER_GROUP_PER_HOUR: z.coerce.number().default(2),
   IDLE_NUDGE_THRESHOLD_MINUTES: z.coerce.number().default(180),
   IDLE_NUDGE_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(30),
+  // 預設關閉：所有互動一律由使用者輸入 party 主動觸發
+  IDLE_NUDGE_ENABLED: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
   GAME_TIMEOUT_MINUTES: z.coerce.number().default(10),
   GAME_TIMEOUT_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(2),
 
