@@ -78,10 +78,6 @@ export const CHECKIN_PROMPT_TEXT =
   "先用一句話或一個表情符號，分享你現在的心情吧。\n\n" +
   "輸入「簽到 你的心情」或直接說「我到了」都可以簽到唷！";
 
-export function buildCheckinAck(): string {
-  return "✅ 簽到成功！";
-}
-
 export function buildIcebreakerText(question: string): string {
   return `💭 破冰問題\n\n${question}\n\n大家可以自然回答，不用等主持人點名～`;
 }

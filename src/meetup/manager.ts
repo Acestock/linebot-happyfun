@@ -35,7 +35,6 @@ import {
   NO_ACTIVE_MEETUP_TEXT,
   PAUSED_TEXT,
   PERMISSION_DENIED_TEXT,
-  buildCheckinAck,
   buildClosingSummary,
   buildCreationConfirmation,
   buildFeedbackAck,
@@ -124,6 +123,14 @@ async function getActiveMeetup(groupId: string): Promise<Meetup | null> {
     where: { groupId, phase: { notIn: [MeetupPhase.ENDED, MeetupPhase.CANCELLED] } },
     orderBy: { createdAt: "desc" },
   });
+}
+
+/**
+ * 小聚進行中時，party 選單／遊戲功能要整個暫停——不然懸浮按鈕、party 選單會跟
+ * 主持人的操作面板混在一起。給 webhook 在 fallback 到遊戲系統之前先檢查。
+ */
+export async function hasActiveMeetup(groupId: string): Promise<boolean> {
+  return (await getActiveMeetup(groupId)) !== null;
 }
 
 async function getHostDisplayName(meetup: Meetup): Promise<string> {
@@ -512,7 +519,15 @@ async function executeHostCommand(
 // 簽到 / 回饋
 // ---------------------------------------------------------------------------
 
-async function recordCheckin(meetup: Meetup, member: MemberIdentity, text: string | null): Promise<MeetupReply> {
+/**
+ * 記錄簽到。刻意不回覆——簽到跟破冰題一樣，讓大家自然發言就好，
+ * 機器人不用逐一回應每一個人，主辦人自己判斷人到齊了沒、按下一步繼續。
+ */
+async function recordCheckin(
+  meetup: Meetup,
+  member: MemberIdentity,
+  text: string | null,
+): Promise<MeetupReply | null> {
   if (meetup.phase !== MeetupPhase.CHECKIN) {
     return { text: "現在不是簽到時間喔。", ui: none() };
   }
@@ -521,7 +536,7 @@ async function recordCheckin(meetup: Meetup, member: MemberIdentity, text: strin
     create: { meetupId: meetup.id, memberId: member.id, text },
     update: { text },
   });
-  return { text: buildCheckinAck(), ui: none() };
+  return null;
 }
 
 async function recordFeedback(meetup: Meetup, member: MemberIdentity, feedback: string): Promise<MeetupReply> {

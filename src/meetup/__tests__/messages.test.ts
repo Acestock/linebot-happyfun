@@ -1,7 +1,6 @@
 import { MeetupPhase } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
-  buildCheckinAck,
   buildClosingSummary,
   buildCreationConfirmation,
   buildIcebreakerText,
@@ -105,9 +104,5 @@ describe("other templates", () => {
 
   it("buildClosingSummary embeds the checkin count", () => {
     expect(buildClosingSummary(12)).toContain("12 人完成簽到");
-  });
-
-  it("buildCheckinAck returns a short confirmation", () => {
-    expect(buildCheckinAck()).toContain("簽到成功");
   });
 });
