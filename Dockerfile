@@ -26,6 +26,6 @@ COPY --from=build /app/prisma ./prisma
 RUN npx prisma generate
 
 EXPOSE 3000
-# timeout: even if the migrate CLI finishes its work but never exits, the
-# server must still come up. exec: node becomes PID 1 and receives signals.
-CMD ["sh", "-c", "timeout 60 node_modules/.bin/prisma migrate deploy; echo \"[boot] prisma migrate deploy exit code: $?\"; exec node dist/index.js"]
+# Migrations are run from inside the app after it starts listening
+# (src/db/migrate.ts), so startup can never be blocked by the Prisma CLI.
+CMD ["node", "dist/index.js"]

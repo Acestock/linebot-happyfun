@@ -27,6 +27,11 @@ async function main() {
   console.log("[boot] calling app.listen", { host: HOST, port: env.PORT });
   const server = app.listen(env.PORT, HOST, () => {
     logger.info({ host: HOST, port: env.PORT, env: env.NODE_ENV }, "linebot-happyfun server started");
+
+    // Migrations run AFTER the server is accepting connections, so a slow
+    // or wedged Prisma CLI can never block startup or the healthcheck.
+    const { runMigrationsInBackground } = require("./db/migrate") as typeof import("./db/migrate");
+    runMigrationsInBackground();
   });
 
   server.on("error", (err) => {
