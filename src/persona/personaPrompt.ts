@@ -26,6 +26,10 @@ const INTENT_INSTRUCTIONS: Record<CopyIntent, string> = {
     "大家正在討論話題，請根據「最近對話」自然地插一句話：可以吐槽、追問其中一個人、或煽風點火讓討論更熱，但不要下結論、不要說教、不要重複別人說過的話。",
   topic_summary:
     "話題討論告一段落，請根據「最近對話」做一個有趣的總結：點名讚（或虧）幾個發言，給這場討論一個結論或頒個獎，最後邀大家輸入 party 繼續玩。",
+  wordchain_chime:
+    "大家正在玩文字接龍，請根據「最近接龍紀錄」自然地插一句話：可以稱讚接得巧妙的詞、虧接得普通的詞、或預告接龍要斷了，但不要出下一個詞、不要說教。",
+  wordchain_summary:
+    "文字接龍結束了，請根據「最近接龍紀錄」和「總接龍數」做一個有趣的總結，可以點評整條接龍、頒個最佳一詞獎，最後邀大家輸入 party 繼續玩。",
 };
 
 export function buildSystemPrompt(memorySnippets: string[]): string {

@@ -5,11 +5,17 @@ export type CopyIntent =
   | "idle_nudge"
   | "topic_opening"
   | "topic_chime"
-  | "topic_summary";
+  | "topic_summary"
+  | "wordchain_chime"
+  | "wordchain_summary";
 
 export interface GenerateInput {
   systemPrompt: string;
   userPrompt: string;
+  /** 預設 200；出題這種結構化輸出需要更大 */
+  maxTokens?: number;
+  /** 預設 4000ms */
+  timeoutMs?: number;
 }
 
 export interface LLMClient {

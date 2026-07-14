@@ -1,7 +1,8 @@
 import { loadEnv } from "../config/env";
 import type { GenerateInput, LLMClient } from "./types";
 
-const TIMEOUT_MS = 4000;
+const DEFAULT_TIMEOUT_MS = 4000;
+const DEFAULT_MAX_TOKENS = 200;
 
 export class OpenAIClient implements LLMClient {
   async generate(input: GenerateInput): Promise<string> {
@@ -11,7 +12,7 @@ export class OpenAIClient implements LLMClient {
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -24,7 +25,7 @@ export class OpenAIClient implements LLMClient {
         body: JSON.stringify({
           model: env.LLM_MODEL,
           temperature: 0.9,
-          max_tokens: 200,
+          max_tokens: input.maxTokens ?? DEFAULT_MAX_TOKENS,
           messages: [
             { role: "system", content: input.systemPrompt },
             { role: "user", content: input.userPrompt },

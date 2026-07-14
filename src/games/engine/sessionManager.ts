@@ -51,7 +51,7 @@ export async function startGame(
       : "已經有一局遊戲在進行中囉！";
   }
 
-  const { state, openingText, config, aiContext, aiIntent } = game.createInitialState();
+  const { state, openingText, config, aiContext, aiIntent } = await game.createInitialState();
   const session = await prisma.gameSession.create({
     data: {
       groupId,

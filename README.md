@@ -4,19 +4,25 @@ LINE 群組「氣氛組」機器人 — 主持小遊戲、炒熱聊天氣氛，A
 
 架構規劃與設計理由請見 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。本 README 只涵蓋「如何跑起來」。
 
-目前進度：**Phase 4 — 話題時間 + 主動排程**。MVP 四個階段全部完成。
+目前進度：**MVP 四個階段全部完成 + 5 款遊戲**。
 
-開場白、獲勝宣布、中止收尾由 GPT-4o 以「阿密」人設即時生成（附防護規則與長度限制）；每次猜測的太大/太小提示維持即時固定文案（不耗 API、零延遲）。**沒有設定 `OPENAI_API_KEY` 時自動使用內建文案**，遊戲功能完全不受影響。要啟用 AI 文案，在 Railway Variables 加上 `OPENAI_API_KEY`（[OpenAI Platform](https://platform.openai.com/api-keys) 申請）。
+開場白、獲勝宣布、中止收尾由 GPT-4o 以「阿密」人設即時生成（附防護規則與長度限制）；每次猜測/搶答的即時判定回饋維持固定文案（不耗 API、零延遲）。**沒有設定 `OPENAI_API_KEY` 時自動使用內建文案／內建題庫**，遊戲功能完全不受影響。要啟用 AI 文案與 AI 出題，在 Railway Variables 加上 `OPENAI_API_KEY`（[OpenAI Platform](https://platform.openai.com/api-keys) 申請）。
+
+閒置主動搭話**預設關閉**——所有互動一律由使用者輸入 `party` 觸發（見「排程」一節）。
 
 ## 怎麼玩
 
-| 操作 | 說明 |
+在群組輸入 `party` 打開遊戲選單（Flex 卡片），點想玩的遊戲直接開局：
+
+| 遊戲 | 玩法 |
 |---|---|
-| 在群組輸入 `party` | 打開遊戲選單（Flex 圖卡），列出使用說明與目前的遊戲 |
-| 點「🔢 終極密碼」 | 開一局猜數字（1~100），直接在群組輸入數字就是猜測，機器人提示太大/太小與剩餘範圍，猜中即結算並記錄戰績 |
-| 點「💬 話題時間」 | AI 丟一個討論話題讓大家聊；AI 每隔幾句才插嘴一次（每場上限 8 次），任何人輸入「總結」即由 AI 總結收尾 |
-| 點「📖 使用說明」 | 顯示玩法說明 |
-| 點「🛑 結束目前遊戲」 | 中止進行中的遊戲並公布答案 |
+| 🔢 終極密碼 | 猜一個 1~100 的數字，直接輸入數字，機器人提示太大/太小，猜中即結算 |
+| 🧠 機智問答 | AI 即時出 5 題冷知識搶答，直接打答案，答對最多分的人獲勝；輸入「跳過」跳題 |
+| 🎬 Emoji 猜謎 | AI 用 emoji 出題（電影/歌曲/成語），猜出對應的名稱；規則同機智問答 |
+| 🔗 文字接龍 | AI 給起手詞，接下一詞的字首要接上一詞字尾，AI 偶爾插嘴評論，輸入「總結」結束並公布貢獻榜 |
+| 💬 話題時間 | AI 丟一個討論話題讓大家聊；AI 每隔幾句才插嘴一次（每場上限 8 次），輸入「總結」由 AI 收尾 |
+
+選單上另外還有「📖 說明」（顯示完整玩法）和「🛑 結束遊戲」（中止進行中的遊戲並公布答案）。
 
 機器人平常保持沉默，只在被 `party` 呼叫、遊戲互動、或加入群組打招呼時說話。
 
@@ -207,6 +213,8 @@ liff/                      # LIFF 前端（尚未建立，規劃於 Phase 5）
 
 ## 5. 未來擴充指引
 
-新增遊戲類型（例如狼人殺）：在 `src/games/` 下新增一個模組，實作通用的 `GameEngine` 介面（見 `docs/ARCHITECTURE.md` 第 6 節），並在 `GameSessionManager` 的 registry 註冊對應的 `game_type` 字串。`game_sessions.config` / `game_moves.payload` 都是 JSONB，新遊戲不需要改資料庫 schema。
+新增遊戲類型（例如狼人殺）：在 `src/games/` 下新增一個模組，實作通用的 `GameDefinition` 介面（`src/games/engine/types.ts`），並在 `src/games/engine/registry.ts` 註冊。選單、webhook 路由、資料庫都不用改——`game_sessions.config` / `game_moves.payload` 是 JSONB，`party` 選單是從 registry 動態產生的。
+
+如果新遊戲是「AI 出一組題目、大家搶答」這種模式（像機智問答、Emoji 猜謎），直接用 `src/games/shared/roundsGameFactory.ts` 的 `createRoundsGame()`，只要給題目生成 prompt 和一份固定題庫當 fallback，幾十行就能生出一個完整遊戲模組。
 
 LIFF 視覺化頁面：`liff/` 目錄是獨立前端專案，透過 `src/api/routes/` 底下的 REST API 與後端溝通；新增頁面/遊戲畫面不需要改 webhook 或資料庫層。
