@@ -1,31 +1,75 @@
 import { Router } from "express";
-import { middleware as lineMiddleware, type webhook } from "@line/bot-sdk";
+import { middleware as lineMiddleware, type messagingApi, type webhook } from "@line/bot-sdk";
 import { loadEnv } from "../config/env";
 import { getLineClient } from "../line/client";
 import { logger } from "../utils/logger";
 import { upsertGroupFromEvent, upsertMemberFromEvent } from "../db/groupRepository";
+import { buildHelpText, buildPartyMenu, isPartyCommand } from "../line/partyMenu";
+import { cancelGame, handleGameMessage, startGame } from "../games/engine/sessionManager";
 
-const GREETING = "嗨嗨～我是這個群組的氣氛組！之後會在這裡主持小遊戲，敬請期待🎉";
+const GREETING =
+  "嗨嗨～我是這個群組的氣氛組🎉\n" +
+  "想玩遊戲的話，隨時輸入「party」打開遊戲選單，我會陪大家嗨起來！";
+
+async function reply(replyToken: string, messages: messagingApi.Message[]): Promise<void> {
+  await getLineClient().replyMessage({ replyToken, messages });
+}
+
+async function replyText(replyToken: string, text: string): Promise<void> {
+  await reply(replyToken, [{ type: "text", text }]);
+}
+
+function parsePostbackData(data: string): Record<string, string> {
+  return Object.fromEntries(new URLSearchParams(data));
+}
 
 async function handleEvent(event: webhook.Event): Promise<void> {
   const group = await upsertGroupFromEvent(event);
-  if (group) {
-    await upsertMemberFromEvent(event, group.id);
-  }
+  if (!group) return; // 只服務群組，一對一聊天先不處理
+
+  const member = await upsertMemberFromEvent(event, group.id);
 
   if (event.type === "join" && event.replyToken) {
-    await getLineClient().replyMessage({
-      replyToken: event.replyToken,
-      messages: [{ type: "text", text: GREETING }],
-    });
+    await replyText(event.replyToken, GREETING);
     return;
   }
 
+  if (event.type === "postback" && event.replyToken) {
+    const data = parsePostbackData(event.postback.data);
+    switch (data.action) {
+      case "help":
+        await replyText(event.replyToken, buildHelpText());
+        return;
+      case "start_game": {
+        const text = await startGame(group.id, data.game ?? "", member?.id ?? null);
+        await replyText(event.replyToken, text);
+        return;
+      }
+      case "cancel_game": {
+        const text = await cancelGame(group.id);
+        await replyText(event.replyToken, text);
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
   if (event.type === "message" && event.message.type === "text" && event.replyToken) {
-    await getLineClient().replyMessage({
-      replyToken: event.replyToken,
-      messages: [{ type: "text", text: "收到！" }],
-    });
+    const text = event.message.text;
+
+    if (isPartyCommand(text)) {
+      await reply(event.replyToken, [buildPartyMenu()]);
+      return;
+    }
+
+    if (member) {
+      const gameReply = await handleGameMessage(group.id, member.id, text);
+      if (gameReply) {
+        await replyText(event.replyToken, gameReply);
+      }
+    }
+    // 其他訊息保持沉默，不打擾群組聊天
   }
 }
 
