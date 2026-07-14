@@ -5,19 +5,31 @@ import { getLineClient } from "../line/client";
 import { logger } from "../utils/logger";
 import { upsertGroupFromEvent, upsertMemberFromEvent } from "../db/groupRepository";
 import { buildHelpText, buildPartyMenu, isPartyCommand } from "../line/partyMenu";
-import { withPartyQuickReply } from "../line/quickReply";
+import { withPartyQuickReply, withQuickReply } from "../line/quickReply";
+import { buildMeetupQuickReply } from "../line/meetupQuickReply";
 import { cancelGame, handleGameMessage, startGame } from "../games/engine/sessionManager";
+import { handleMeetupPostback, handleMeetupText } from "../meetup/manager";
 
 const GREETING =
   "嗨嗨～我是這個群組的氣氛組🎉\n" +
-  "想玩遊戲的話，隨時輸入「party」打開遊戲選單，我會陪大家嗨起來！";
+  "想玩遊戲的話，隨時輸入「party」打開遊戲選單，我會陪大家嗨起來！\n" +
+  "想辦一場有主持人的小聚活動，輸入「/建立小聚」試試看！";
 
-async function reply(replyToken: string, messages: messagingApi.Message[]): Promise<void> {
-  await getLineClient().replyMessage({ replyToken, messages: withPartyQuickReply(messages) });
+async function reply(
+  replyToken: string,
+  messages: messagingApi.Message[],
+  quickReply?: messagingApi.QuickReply,
+): Promise<void> {
+  const withQr = quickReply ? withQuickReply(messages, quickReply) : withPartyQuickReply(messages);
+  await getLineClient().replyMessage({ replyToken, messages: withQr });
 }
 
-async function replyText(replyToken: string, text: string): Promise<void> {
-  await reply(replyToken, [{ type: "text", text }]);
+async function replyText(
+  replyToken: string,
+  text: string,
+  quickReply?: messagingApi.QuickReply,
+): Promise<void> {
+  await reply(replyToken, [{ type: "text", text }], quickReply);
 }
 
 function parsePostbackData(data: string): Record<string, string> {
@@ -46,6 +58,15 @@ async function handleEvent(event: webhook.Event): Promise<void> {
 
   if (event.type === "postback" && event.replyToken) {
     const data = parsePostbackData(event.postback.data);
+
+    if (data.action === "meetup" && member) {
+      const result = await handleMeetupPostback(group.id, member, data.cmd ?? "");
+      if (result) {
+        await replyText(event.replyToken, result.text, buildMeetupQuickReply(result.ui));
+      }
+      return;
+    }
+
     switch (data.action) {
       case "help":
         await replyText(event.replyToken, buildHelpText());
@@ -67,6 +88,14 @@ async function handleEvent(event: webhook.Event): Promise<void> {
 
   if (event.type === "message" && event.message.type === "text" && event.replyToken) {
     const text = event.message.text;
+
+    if (member) {
+      const meetupReply = await handleMeetupText(group.id, member, text);
+      if (meetupReply) {
+        await replyText(event.replyToken, meetupReply.text, buildMeetupQuickReply(meetupReply.ui));
+        return;
+      }
+    }
 
     if (isPartyCommand(text)) {
       await reply(event.replyToken, [buildPartyMenu()]);

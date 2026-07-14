@@ -25,11 +25,19 @@ export function buildPartyQuickReply(): messagingApi.QuickReply {
   };
 }
 
-/** 幫訊息陣列的最後一則附上 Quick Reply（LINE 只認訊息陣列裡最後一則的 quickReply） */
+/** 幫訊息陣列的最後一則附上指定的 Quick Reply（LINE 只認訊息陣列裡最後一則的 quickReply） */
+export function withQuickReply(
+  messages: messagingApi.Message[],
+  quickReply: messagingApi.QuickReply | undefined,
+): messagingApi.Message[] {
+  if (messages.length === 0 || !quickReply) return messages;
+  const last = messages[messages.length - 1];
+  return [...messages.slice(0, -1), { ...last, quickReply }];
+}
+
+/** 幫訊息陣列的最後一則附上 party/結束遊戲 Quick Reply（既有呼叫端的預設行為） */
 export function withPartyQuickReply(
   messages: messagingApi.Message[],
 ): messagingApi.Message[] {
-  if (messages.length === 0) return messages;
-  const last = messages[messages.length - 1];
-  return [...messages.slice(0, -1), { ...last, quickReply: buildPartyQuickReply() }];
+  return withQuickReply(messages, buildPartyQuickReply());
 }

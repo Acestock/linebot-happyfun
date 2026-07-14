@@ -17,6 +17,20 @@ enum GameSessionStatus {
   timeout
 }
 
+enum MeetupPhase {
+  SETUP
+  READY
+  OPENING
+  CHECKIN
+  ICEBREAKER
+  INTERACTION
+  FREE_TALK
+  CLOSING
+  ENDED
+  PAUSED
+  CANCELLED
+}
+
 model Group {
   id               String    @id @default(uuid())
   lineGroupId      String    @unique @map("line_group_id")
@@ -29,6 +43,7 @@ model Group {
   members      GroupMember[]
   memories     GroupMemory[]
   gameSessions GameSession[]
+  meetups      Meetup[]
 
   @@map("groups")
 }
@@ -47,6 +62,9 @@ model GroupMember {
   moves        GameMove[]
   wonSessions  GameSession[]     @relation("SessionWinner")
   startedSessions GameSession[]  @relation("SessionStarter")
+  hostedMeetups   Meetup[]          @relation("MeetupHost")
+  meetupCheckins  MeetupCheckin[]
+  meetupFeedbacks MeetupFeedback[]
 
   @@unique([groupId, lineUserId])
   @@map("group_members")
@@ -117,4 +135,72 @@ model GameMove {
 
   @@index([sessionId])
   @@map("game_moves")
+}
+
+/// 小聚活動主持人 — 跟 game_sessions 刻意分開的平行資料模型：
+/// 小聚是主辦人驅動的長時間活動流程，不是輸贏遊戲，狀態機/權限/簽到的語意都不同，
+/// 硬塞進 GameSession 會讓兩邊互相污染。狀態直接落地 Postgres（不像遊戲用 Redis
+/// 存活躍狀態），因為小聚動輒 30~90 分鐘，不適合套用遊戲那套短時效 TTL。
+model Meetup {
+  id                   String       @id @default(uuid())
+  groupId              String       @map("group_id")
+  hostMemberId         String       @map("host_member_id")
+  phase                MeetupPhase  @default(SETUP)
+  pausedFromPhase      MeetupPhase? @map("paused_from_phase")
+
+  name                 String?
+  plannedMinutes       Int?         @map("planned_minutes")
+  hostStyle            String?      @map("host_style")
+  icebreakerCategory   String?      @map("icebreaker_category")
+  interactionType      String?      @map("interaction_type")
+  customIcebreakerText String?      @map("custom_icebreaker_text")
+
+  /// SETUP 精靈目前在等哪一題的回答（name/time/customTime/style/icebreaker/interaction），完成後清為 null
+  setupStep            String?      @map("setup_step")
+
+  currentIcebreaker    String?      @map("current_icebreaker")
+  usedIcebreakers      Json         @default("[]") @map("used_icebreakers")
+
+  currentInteraction   String?      @map("current_interaction")
+  usedInteractions     Json         @default("[]") @map("used_interactions")
+
+  createdAt            DateTime     @default(now()) @map("created_at")
+  startedAt            DateTime?    @map("started_at")
+  endedAt              DateTime?    @map("ended_at")
+
+  group     Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  host      GroupMember      @relation("MeetupHost", fields: [hostMemberId], references: [id])
+  checkins  MeetupCheckin[]
+  feedbacks MeetupFeedback[]
+
+  @@index([groupId, phase])
+  @@map("meetups")
+}
+
+model MeetupCheckin {
+  id          String   @id @default(uuid())
+  meetupId    String   @map("meetup_id")
+  memberId    String   @map("member_id")
+  text        String?
+  checkedInAt DateTime @default(now()) @map("checked_in_at")
+
+  meetup Meetup      @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  member GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([meetupId, memberId])
+  @@map("meetup_checkins")
+}
+
+model MeetupFeedback {
+  id        String   @id @default(uuid())
+  meetupId  String   @map("meetup_id")
+  memberId  String   @map("member_id")
+  feedback  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  meetup Meetup      @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  member GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([meetupId, memberId])
+  @@map("meetup_feedback")
 }
