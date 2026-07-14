@@ -100,7 +100,7 @@ function buildCreatedCard(p: Extract<MeetupCardPayload, { kind: "created" }>): F
       detailRow("主持風格", p.hostStyle),
       detailRow("破冰類型", ICEBREAKER_CATEGORY_LABELS[p.icebreakerCategory]),
       detailRow("互動環節", INTERACTION_TYPE_LABELS[p.interactionType]),
-      { type: "text", text: "主辦人可以點下方按鈕，或輸入「/開始小聚」開始活動", size: "xxs", color: "#999999", margin: "md", wrap: true },
+      { type: "text", text: "主辦人可以點下方按鈕，或輸入「開始小聚」開始活動", size: "xxs", color: "#999999", margin: "md", wrap: true },
     ]),
     footerBox([postbackButton("▶️ 開始活動", "start", "開始小聚", "primary", COLOR.teal)]),
   );
@@ -134,7 +134,7 @@ function buildCheckinCard(): FlexBox {
         color: "#333333",
         wrap: true,
       },
-      { type: "text", text: "也可以輸入「/簽到 你的心情」附上文字", size: "xxs", color: "#999999", margin: "sm" },
+      { type: "text", text: "也可以輸入「簽到 你的心情」附上文字", size: "xxs", color: "#999999", margin: "sm" },
     ]),
     footerBox([messageButton("🙋 我到了", "我到了", "primary")]),
   );

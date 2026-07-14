@@ -10,6 +10,74 @@ export function isPartyCommand(text: string): boolean {
 
 const ROW_COLORS = ["#FFF0F6", "#F0F4FF", "#FFF8E1", "#F0FFF4", "#F5F0FF"];
 
+const PREMIUM_GOLD = "#B8860B";
+const PREMIUM_BG = "#FFF9EC";
+
+/** 付費區的項目（目前只有小聚活動主持人）。點擊送出對應的純文字指令，跟使用者自己打字效果一致。 */
+function premiumRow(emoji: string, title: string, description: string, triggerText: string) {
+  return {
+    type: "box" as const,
+    layout: "horizontal" as const,
+    backgroundColor: PREMIUM_BG,
+    borderColor: PREMIUM_GOLD,
+    borderWidth: "1px",
+    cornerRadius: "lg" as const,
+    paddingAll: "10px",
+    spacing: "sm" as const,
+    alignItems: "center" as const,
+    action: {
+      type: "message" as const,
+      text: triggerText,
+    },
+    contents: [
+      {
+        type: "text" as const,
+        text: emoji,
+        size: "xl" as const,
+        flex: 0,
+        gravity: "center" as const,
+      },
+      {
+        type: "box" as const,
+        layout: "vertical" as const,
+        flex: 1,
+        contents: [
+          {
+            type: "box" as const,
+            layout: "horizontal" as const,
+            spacing: "xs" as const,
+            contents: [
+              { type: "text" as const, text: title, weight: "bold" as const, size: "sm" as const, color: "#333333" },
+              {
+                type: "text" as const,
+                text: "💎 付費",
+                size: "xxs" as const,
+                color: PREMIUM_GOLD,
+                weight: "bold" as const,
+              },
+            ],
+          },
+          {
+            type: "text" as const,
+            text: description,
+            size: "xxs" as const,
+            color: "#888888",
+            wrap: true,
+          },
+        ],
+      },
+      {
+        type: "text" as const,
+        text: "▶",
+        size: "xs" as const,
+        color: PREMIUM_GOLD,
+        flex: 0,
+        gravity: "center" as const,
+      },
+    ],
+  };
+}
+
 function gameRow(game: GameDefinition, index: number) {
   return {
     type: "box" as const,
@@ -104,7 +172,24 @@ export function buildPartyMenu(): messagingApi.Message {
         layout: "vertical",
         spacing: "sm",
         paddingAll: "12px",
-        contents: games.map((game, i) => gameRow(game, i)),
+        contents: [
+          ...games.map((game, i) => gameRow(game, i)),
+          { type: "separator", margin: "md" },
+          {
+            type: "text",
+            text: "💎 進階功能",
+            size: "xxs",
+            color: PREMIUM_GOLD,
+            weight: "bold",
+            margin: "md",
+          },
+          premiumRow(
+            "🎪",
+            "小聚活動主持人",
+            "簽到、破冰、互動一手包辦，適合 5~30 人的聚會",
+            "建立小聚",
+          ),
+        ],
       },
       footer: {
         type: "box",
@@ -157,6 +242,7 @@ export function buildHelpText(): string {
     `4️⃣ 想中止遊戲，點選單裡的「🛑 結束遊戲」\n` +
     `━━━━━━━━━━\n` +
     `目前的遊戲：\n${gameLines}\n` +
+    `\n💎 進階功能：輸入「建立小聚」開始一場有主持人的活動，詳見選單上的付費區。` +
     `\n之後還會有更多玩法陸續加入，敬請期待🎊`
   );
 }

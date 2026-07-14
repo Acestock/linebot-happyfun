@@ -27,7 +27,7 @@ describe("buildCreationConfirmation", () => {
     expect(text).toContain("主持風格：輕鬆");
     expect(text).toContain("破冰類型：興趣交流");
     expect(text).toContain("互動環節：二選一");
-    expect(text).toContain("/開始小聚");
+    expect(text).toContain("開始小聚");
   });
 });
 

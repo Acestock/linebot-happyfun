@@ -14,7 +14,7 @@ import { handleMeetupPostback, handleMeetupText, type MeetupReply } from "../mee
 const GREETING =
   "嗨嗨～我是這個群組的氣氛組🎉\n" +
   "想玩遊戲的話，隨時輸入「party」打開遊戲選單，我會陪大家嗨起來！\n" +
-  "想辦一場有主持人的小聚活動，輸入「/建立小聚」試試看！";
+  "想辦一場有主持人的小聚活動，輸入「建立小聚」試試看！";
 
 async function reply(
   replyToken: string,

@@ -49,6 +49,7 @@ import {
   buildStatusText,
 } from "./messages";
 import {
+  AMBIGUOUS_HOST_COMMANDS,
   isHelpCommand,
   isStatusCommand,
   parseCheckin,
@@ -605,15 +606,20 @@ export async function handleMeetupText(
       return createMeetup(groupId, member);
     }
     const meetup = await getActiveMeetup(groupId);
-    if (!meetup) return { text: NO_ACTIVE_MEETUP_TEXT, ui: none() };
+    if (!meetup) {
+      // 「下一步」「跳過」這類短詞跟其他系統（例如問答遊戲的跳題）撞詞風險高，
+      // 沒有進行中的小聚時靜默放行，不要主動提示；其餘指令詞夠獨特，維持提示。
+      if (AMBIGUOUS_HOST_COMMANDS.has(hostCommand)) return null;
+      return { text: NO_ACTIVE_MEETUP_TEXT, ui: none() };
+    }
     return executeHostCommand(meetup, member, hostCommand);
   }
 
   const checkin = parseCheckin(text);
   if (checkin) {
     const meetup = await getActiveMeetup(groupId);
-    if (!meetup) return null; // 沒有活動時，「我到了」這種閒聊字句不要打擾群組
-    if (meetup.phase !== MeetupPhase.CHECKIN && text.startsWith("/")) {
+    if (!meetup) return null; // 沒有活動時，「簽到」「我到了」這種字句不要打擾群組
+    if (meetup.phase !== MeetupPhase.CHECKIN && checkin.explicit) {
       return { text: "現在不是簽到時間喔。", ui: none() };
     }
     if (meetup.phase !== MeetupPhase.CHECKIN) return null; // 非簽到指令、非簽到階段：靜默

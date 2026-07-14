@@ -16,7 +16,7 @@ import { STYLE_OPTIONS, TIME_OPTIONS } from "./setupWizard";
 export const PERMISSION_DENIED_TEXT = "這個操作只有本場活動的主辦人可以使用。";
 export const ALREADY_ACTIVE_TEXT =
   "這個群組目前已有一場尚未結束的小聚，請先結束或取消原本的活動。";
-export const NO_ACTIVE_MEETUP_TEXT = "目前沒有進行中的小聚喔，輸入「/建立小聚」開始一場新的！";
+export const NO_ACTIVE_MEETUP_TEXT = "目前沒有進行中的小聚喔，輸入「建立小聚」開始一場新的！";
 
 export function buildSetupQuestionText(step: SetupStep): string {
   switch (step) {
@@ -57,7 +57,7 @@ export function buildCreationConfirmation(params: {
     `主持風格：${params.hostStyle}\n` +
     `破冰類型：${ICEBREAKER_CATEGORY_LABELS[params.icebreakerCategory]}\n` +
     `互動環節：${INTERACTION_TYPE_LABELS[params.interactionType]}\n\n` +
-    `請由主辦人輸入「/開始小聚」開始活動。`
+    `請由主辦人輸入「開始小聚」開始活動。`
   );
 }
 
@@ -70,13 +70,13 @@ export function buildOpeningText(params: { name: string; plannedMinutes: number;
     `大家好，歡迎來到「${params.name}」！\n\n` +
     `今天預計進行約 ${params.plannedMinutes} 分鐘，流程包含${flowParts.join("、")}。\n\n` +
     `不用有壓力，按照自己的步調參加就可以了。\n\n` +
-    `（主辦人可以輸入「/下一步」推進流程）`
+    `（主辦人可以輸入「下一步」推進流程）`
   );
 }
 
 export const CHECKIN_PROMPT_TEXT =
   "先用一句話或一個表情符號，分享你現在的心情吧。\n\n" +
-  "輸入「/簽到 你的心情」或直接說「我到了」都可以簽到唷！";
+  "輸入「簽到 你的心情」或直接說「我到了」都可以簽到唷！";
 
 export function buildCheckinAck(): string {
   return "✅ 簽到成功！";
@@ -95,7 +95,7 @@ export const INTERACTION_SKIPPED_NONE_TEXT =
 
 export const FREE_TALK_TEXT =
   "接下來是自由交流時間。\n\n" +
-  "可以接著聊剛才的答案，也可以分享最近正在做的事情。Bot 暫時不打擾大家，主辦人準備結束時輸入「/下一步」即可。";
+  "可以接著聊剛才的答案，也可以分享最近正在做的事情。Bot 暫時不打擾大家，主辦人準備結束時輸入「下一步」即可。";
 
 export function buildClosingSummary(checkinCount: number): string {
   return (
@@ -107,7 +107,7 @@ export function buildClosingSummary(checkinCount: number): string {
 
 export const ENDED_THANKS_TEXT = "本場小聚正式結束，感謝主持與參與！期待下次見面 🎉";
 export const CANCELLED_TEXT = "本場小聚已取消。";
-export const PAUSED_TEXT = "小聚已暫停，輸入「/繼續小聚」隨時可以恢復。";
+export const PAUSED_TEXT = "小聚已暫停，輸入「繼續小聚」隨時可以恢復。";
 
 export function buildResumeText(phase: MeetupPhase): string {
   return `小聚繼續進行～目前回到「${phaseLabel(phase)}」階段。`;
@@ -149,16 +149,16 @@ export function buildHelpText(): string {
   return (
     `📖 小聚主持人使用說明\n` +
     `━━━━━━━━━━\n` +
-    `/建立小聚　建立一場新的小聚活動\n` +
-    `/開始小聚　主辦人開始活動\n` +
-    `/下一步　　推進到下一階段\n` +
-    `/跳過　　　跳過目前階段\n` +
-    `/換題目　　更換破冰題或互動題\n` +
-    `/暫停小聚　暫停活動\n` +
-    `/繼續小聚　從暫停處繼續\n` +
-    `/小聚狀態　查看目前進度\n` +
-    `/結束小聚　結束活動\n` +
-    `/取消小聚　取消活動\n` +
+    `建立小聚　建立一場新的小聚活動\n` +
+    `開始小聚　主辦人開始活動\n` +
+    `下一步　　推進到下一階段\n` +
+    `跳過　　　跳過目前階段\n` +
+    `換題目　　更換破冰題或互動題\n` +
+    `暫停小聚　暫停活動\n` +
+    `繼續小聚　從暫停處繼續\n` +
+    `小聚狀態　查看目前進度\n` +
+    `結束小聚　結束活動\n` +
+    `取消小聚　取消活動\n` +
     `━━━━━━━━━━\n` +
     `以上管理指令只有主辦人可以使用，建立活動的人會自動成為主辦人。`
   );
