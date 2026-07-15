@@ -87,7 +87,9 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 
 跟遊戲引擎（`src/games/engine/`）刻意不共用：那套引擎假設「一個群組同時只有一場、Redis TTL 到就消失、輪流打字猜」，Wordle 是「每個人各自解題、狀態要跨天留著算排行榜」，架構完全不同——這是繼小聚活動主持人之後，第二個「刻意不硬塞進遊戲引擎」的平行資料模型（`WordlePuzzle` / `WordleAttempt`）。每天一題全部群組共用（懶惰建立，第一個打進來的請求生出當天題目，不用額外排程），排行榜則是各群組獨立計算。
 
-身分驗證用 LIFF 的 ID Token（`liff.getIDToken()`），後端直接呼叫 LINE 官方 `/oauth2/v2.1/verify` 驗證（`src/line/idToken.ts`），不用自己處理 JWT 簽章、也不用另外簽發 session token——換一點點延遲，省掉一整類自製加解密邏輯。需要在 LINE Developers Console 的 LIFF 分頁另外建立一個 LIFF app，把拿到的 `LIFF_ID` 和該 app 掛的 Channel ID（`LIFF_CHANNEL_ID`）填進 Railway Variables；沒填 `LIFF_ID` 時，`party` 選單不會顯示這顆按鈕（不會給使用者一個打不開的死連結）。
+身分驗證用 LIFF 的 ID Token（`liff.getIDToken()`），後端直接呼叫 LINE 官方 `/oauth2/v2.1/verify` 驗證（`src/line/idToken.ts`），不用自己處理 JWT 簽章、也不用另外簽發 session token——換一點點延遲，省掉一整類自製加解密邏輯。
+
+**LIFF app 現在不能掛在 Messaging API channel（就是機器人本身那個 channel）底下**，LINE 平台改成一定要透過 LINE Login channel：在 LINE Developers Console 同一個 Provider 底下另外建立一個 LINE Login channel，LIFF app 是建在那個 channel 的「LIFF」分頁裡（Endpoint URL 指到 `https://<你的網域>/liff/`，Scope 記得勾 `openid` 才拿得到 ID token）。把建好後拿到的 `LIFF_ID`，和這個 LINE Login channel 的 Channel ID（`LIFF_CHANNEL_ID`，在它自己的 Basic settings 分頁）填進 Railway Variables；沒填 `LIFF_ID` 時，`party` 選單不會顯示這顆按鈕（不會給使用者一個打不開的死連結）。完整步驟見 `.env.example` 裡的註解。
 
 下面第 1 節是**完整、不需要在自己電腦上跑程式**的上線流程：建一個全新的 LINE 官方帳號，把這個 repo 直接部署到 Railway，兩邊接起來就能在真實 LINE 群組裡試用。本機開發（要改程式碼、加新功能時才需要）在第 4 節。
 
