@@ -258,6 +258,7 @@ async function loadSession() {
   el.message.hidden = true;
   el.grid.hidden = false;
   buildGrid();
+  buildKeyboard();
   renderAll();
 }
 
