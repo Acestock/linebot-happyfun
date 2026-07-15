@@ -37,6 +37,31 @@ export async function upsertMemberFromEvent(event: webhook.Event, groupId: strin
   return member;
 }
 
+/**
+ * 給 LIFF API 用：跟 upsertGroupFromEvent/upsertMemberFromEvent 同樣的懶惰建立邏輯，
+ * 差別是輸入來源不是 webhook event，而是 LIFF 那邊驗證過的 lineUserId + liff.getContext()
+ * 拿到的 lineGroupId。不動 messageCount（那是聊天訊息量的統計，LIFF 互動不算）。
+ */
+export async function upsertGroupMemberByLineIds(lineGroupId: string, lineUserId: string) {
+  const group = await prisma.group.upsert({
+    where: { lineGroupId },
+    create: { lineGroupId },
+    update: {},
+  });
+
+  const member = await prisma.groupMember.upsert({
+    where: { groupId_lineUserId: { groupId: group.id, lineUserId } },
+    create: { groupId: group.id, lineUserId },
+    update: { lastInteractedAt: new Date() },
+  });
+
+  if (!member.displayName) {
+    void fetchAndStoreDisplayName(member.id, lineGroupId, lineUserId);
+  }
+
+  return { group, member };
+}
+
 /** 補抓成員顯示名稱（best-effort，失敗不影響主流程） */
 async function fetchAndStoreDisplayName(
   memberId: string,

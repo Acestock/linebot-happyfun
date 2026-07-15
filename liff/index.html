@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>每日 Wordle</title>
+    <link rel="stylesheet" href="wordle.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>🔤 每日 Wordle</h1>
+      <p id="subtitle" class="subtitle">載入中…</p>
+    </header>
+
+    <main>
+      <div id="message" class="message" hidden></div>
+
+      <div id="grid" class="grid" hidden></div>
+
+      <div id="keyboard" class="keyboard" hidden></div>
+
+      <div id="finish" class="finish" hidden>
+        <p id="finish-text"></p>
+        <button id="share-button" class="share-button">📤 分享到群組</button>
+      </div>
+    </main>
+
+    <!-- LIFF SDK：CDN 版本，沒有前端建構工具，直接引用官方腳本即可 -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="wordle.js"></script>
+  </body>
+</html>

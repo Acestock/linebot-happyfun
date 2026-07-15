@@ -4,7 +4,7 @@ LINE 群組「氣氛組」機器人 — 主持小遊戲、炒熱聊天氣氛，A
 
 架構規劃與設計理由請見 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。本 README 只涵蓋「如何跑起來」。
 
-目前進度：**MVP 四個階段全部完成 + 5 款遊戲 + 小聚活動主持人**。
+目前進度：**MVP 四個階段全部完成 + 5 款文字遊戲 + 小聚活動主持人 + 每日 Wordle（LIFF）**。
 
 開場白、獲勝宣布、中止收尾由 GPT-4o 以「阿密」人設即時生成（附防護規則與長度限制）；每次猜測/搶答的即時判定回饋維持固定文案（不耗 API、零延遲）。**沒有設定 `OPENAI_API_KEY` 時自動使用內建文案／內建題庫**，遊戲功能完全不受影響。要啟用 AI 文案與 AI 出題，在 Railway Variables 加上 `OPENAI_API_KEY`（[OpenAI Platform](https://platform.openai.com/api-keys) 申請）。
 
@@ -80,6 +80,14 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 **AI 主題破冰題**：設定精靈的破冰題類型多了一個「AI 根據主題出題」選項，選了之後每次要出破冰題（含「換題目」）會拿建立小聚時填的「活動名稱」當主題提示，加上已經出過的題目（避免重複）丟給 LLM 現場生成一題跟主題相關的破冰問題（`src/meetup/icebreakerAI.ts`，走跟遊戲人設文案獨立的 prompt——這裡要的是正經的出題語氣，不是「阿密」的吐槽人設）。沒設定 `OPENAI_API_KEY`、逾時、或連續兩次生成都被 moderation 擋下時，會自動退回靜態題庫出題，破冰階段永遠不會因為 AI 掛掉而卡住。
 
 **結束後的活動報告卡**：輸入 `結束小聚`（或流程跑到最後一步自然結束）時，不再只是一句「謝謝參加」，而是一張完整的報告卡：活動時長、簽到人數、群組發言則數（活動進行中悄悄計數，不逐則回覆，`SETUP`/`READY` 設定階段不計入）、最熱烈參與者、以及尾聲時大家留下的「很喜歡／還不錯／可以更好」回饋分佈。這張報告卡是主辦人事後跟別人展示「這場活動辦得如何」的具體成果，也是這個付費功能相對「主辦人自己空手主持」最直接的差異化價值之一。
+
+## 每日 Wordle（LIFF 網頁小遊戲）
+
+跟上面的文字遊戲不一樣，這是第一個有網頁畫面的功能——在 `party` 選單點「🔤 每日 Wordle」會打開一個 LIFF 頁面（`liff/`，純 HTML/CSS/vanilla JS，沒有前端建構工具），每個人在網頁裡各自解今天的 5 字母英文單字（經典 Wordle 規則：🟩 位置對、🟨 字母對位置錯、⬜ 沒這個字母，6 次機會），解完可以用 `liff.shareTargetPicker()` 把成績分享回群組，或者任何人在群組輸入 `wordle 排行` 查看當天的排行榜（依猜測次數、再依花費時間排序）。
+
+跟遊戲引擎（`src/games/engine/`）刻意不共用：那套引擎假設「一個群組同時只有一場、Redis TTL 到就消失、輪流打字猜」，Wordle 是「每個人各自解題、狀態要跨天留著算排行榜」，架構完全不同——這是繼小聚活動主持人之後，第二個「刻意不硬塞進遊戲引擎」的平行資料模型（`WordlePuzzle` / `WordleAttempt`）。每天一題全部群組共用（懶惰建立，第一個打進來的請求生出當天題目，不用額外排程），排行榜則是各群組獨立計算。
+
+身分驗證用 LIFF 的 ID Token（`liff.getIDToken()`），後端直接呼叫 LINE 官方 `/oauth2/v2.1/verify` 驗證（`src/line/idToken.ts`），不用自己處理 JWT 簽章、也不用另外簽發 session token——換一點點延遲，省掉一整類自製加解密邏輯。需要在 LINE Developers Console 的 LIFF 分頁另外建立一個 LIFF app，把拿到的 `LIFF_ID` 和該 app 掛的 Channel ID（`LIFF_CHANNEL_ID`）填進 Railway Variables；沒填 `LIFF_ID` 時，`party` 選單不會顯示這顆按鈕（不會給使用者一個打不開的死連結）。
 
 下面第 1 節是**完整、不需要在自己電腦上跑程式**的上線流程：建一個全新的 LINE 官方帳號，把這個 repo 直接部署到 Railway，兩邊接起來就能在真實 LINE 群組裡試用。本機開發（要改程式碼、加新功能時才需要）在第 4 節。
 
@@ -242,15 +250,17 @@ npm test
 ```
 src/
 ├── index.ts        # entrypoint
-├── app.ts           # Express app 組裝
+├── app.ts           # Express app 組裝（含 /liff 靜態檔案掛載）
 ├── config/           # 環境變數驗證（zod）
 ├── db/                # Prisma client、群組/成員 upsert
 ├── redis/             # Redis client
-├── line/              # LINE Messaging API client
+├── line/              # LINE Messaging API client、party 選單、ID Token 驗證
 ├── webhook/            # LINE webhook（簽章驗證 + 事件處理）
-└── api/routes/          # 給 LIFF 用的 REST API（目前只有 /api/ping）
+├── meetup/             # 小聚活動主持人（狀態機、Flex 卡片、排程）
+├── wordle/             # 每日 Wordle（純邏輯、DB orchestration）
+└── api/routes/          # 給 LIFF 用的 REST API（/api/ping、/api/wordle/*）
 prisma/schema.prisma      # 資料庫 schema
-liff/                      # LIFF 前端（尚未建立，規劃於 Phase 5）
+liff/                      # LIFF 前端（純 HTML/CSS/JS，不在 TS build 範圍內，見 tsconfig.json exclude）
 ```
 
 ### 4.6 本機 / Railway 怎麼切換

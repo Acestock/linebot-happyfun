@@ -16,6 +16,8 @@ import {
   recordActivity,
   type MeetupReply,
 } from "../meetup/manager";
+import { getLeaderboard } from "../wordle/manager";
+import { buildLeaderboardText, isWordleLeaderboardCommand } from "../wordle/messages";
 
 const GREETING =
   "嗨嗨～我是這個群組的氣氛組🎉\n" +
@@ -129,6 +131,12 @@ async function handleEvent(event: webhook.Event): Promise<void> {
 
     if (isPartyCommand(text)) {
       await reply(event.replyToken, [buildPartyMenu()]);
+      return;
+    }
+
+    if (isWordleLeaderboardCommand(text)) {
+      const leaderboard = await getLeaderboard(group.id);
+      await replyText(event.replyToken, buildLeaderboardText(leaderboard));
       return;
     }
 

@@ -1,9 +1,8 @@
 import { Router } from "express";
+import { createWordleRouter } from "./wordle";
 
 /**
- * Shared REST API surface for the (future) LIFF frontend.
- * MVP only exposes a healthcheck; game/leaderboard endpoints land alongside
- * the LIFF UI work.
+ * Shared REST API surface for the LIFF frontend (liff/).
  */
 export function createApiRouter(): Router {
   const router = Router();
@@ -11,6 +10,8 @@ export function createApiRouter(): Router {
   router.get("/ping", (_req, res) => {
     res.status(200).json({ pong: true });
   });
+
+  router.use("/wordle", createWordleRouter());
 
   return router;
 }

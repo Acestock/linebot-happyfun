@@ -66,13 +66,14 @@ MVP 範圍：終極密碼（猜數字）＋開場白／閒置主動互動＋AI �
 │   ├── webhook/
 │   │   └── lineWebhook.ts        # 簽章驗證 + event router
 │   ├── api/
-│   │   └── routes/               # 給 LIFF 呼叫的 REST endpoint（MVP 先放 healthcheck）
+│   │   └── routes/               # 給 LIFF 呼叫的 REST endpoint（/api/ping、/api/wordle/*）
 │   └── utils/logger.ts
 ├── prisma/
 │   └── schema.prisma
-├── liff/                         # 獨立前端專案，MVP 只放 hello world 頁面
-│   ├── index.html
-│   └── src/
+├── liff/                         # 獨立前端專案（純 HTML/CSS/JS，不進 TS build）
+│   ├── index.html                # 每日 Wordle 頁面（原規劃是 hello world，後來直接做成正式功能）
+│   ├── wordle.css
+│   └── wordle.js
 ├── docker-compose.yml            # 本機 Postgres + Redis
 ├── Dockerfile
 ├── railway.json
@@ -285,7 +286,8 @@ interface GameEngine<TConfig, TState, TMoveInput, TResult> {
 | `IDLE_NUDGE_THRESHOLD_MINUTES` / `IDLE_NUDGE_SWEEP_INTERVAL_MINUTES` | `.env` | Railway Variables |
 | `GAME_TIMEOUT_MINUTES` / `GAME_TIMEOUT_SWEEP_INTERVAL_MINUTES` | `.env` | Railway Variables |
 | `INTERNAL_STATS_TOKEN`（保護內部統計 endpoint） | `.env` | Railway Variables |
-| `LIFF_ID`（Phase 5 才會用到，先預留） | `.env` | Railway Variables |
+| `LIFF_ID`（每日 Wordle LIFF app 的 ID） | `.env` | Railway Variables |
+| `LIFF_CHANNEL_ID`（該 LIFF app 掛的 Channel ID，驗證 ID token 用） | `.env` | Railway Variables |
 
 ---
 
@@ -306,7 +308,7 @@ interface GameEngine<TConfig, TState, TMoveInput, TResult> {
 | 2 | 終極密碼完整流程：開局／猜測／結算／名次記錄，`GameEngine` 框架 | 狀態機純函式的單元測試（給定狀態+輸入→驗證輸出）；本機模擬多輪事件的腳本測試；真實群組手動測試完整一局 |
 | 3 | AI 人設文案（取代 Phase 2 的寫死文案）＋防護＋降級 | 防護規則的單元測試（黑名單觸發案例）；手動關閉/餵錯 API key 驗證降級文案生效；真實群組人工檢視語氣是否符合人設 |
 | 4 | 主動互動排程（閒置互動＋逾時掃描）＋ Push 頻率限制 | 本機把門檻/間隔調短做手動驗證；驗證超過頻率上限時第二則 Push 會被擋下；驗證忘記回覆的遊戲會被逾時收尾 |
-| 5（stretch） | LIFF hello world 頁面＋共用 API 路由掛載 | 瀏覽器開 LIFF 頁面確認能載入；預留但非本次 MVP 必做項目 |
+| 5（stretch，後來實作為完整功能） | 每日 Wordle：LIFF 頁面＋共用 API 路由＋新的平行資料模型（`WordlePuzzle`/`WordleAttempt`，跟遊戲引擎/Meetup 一樣不共用既有 session 機制） | 純邏輯（字母回饋演算法）的單元測試；真的本機 Postgres 跑 smoke script 驗證完整一局勝/敗＋排行榜排序；LIFF 畫面本身無法自動化測試，需部署後在 LINE App 內手動驗證 |
 
 ---
 

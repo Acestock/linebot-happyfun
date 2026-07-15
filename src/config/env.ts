@@ -45,6 +45,9 @@ const envSchema = z.object({
 
   INTERNAL_STATS_TOKEN: z.string().optional(),
   LIFF_ID: z.string().optional(),
+  // LIFF app 掛載的 Channel ID（數字），驗證 LIFF ID token 時當 client_id 用。
+  // 跟 LINE_CHANNEL_SECRET 不同東西，在 LINE Developers Console 的 LIFF 分頁可以找到。
+  LIFF_CHANNEL_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,4 +1,5 @@
 import type { messagingApi } from "@line/bot-sdk";
+import { loadEnv } from "../config/env";
 import { listGames } from "../games/engine/registry";
 import type { GameDefinition } from "../games/engine/types";
 
@@ -12,6 +13,60 @@ const ROW_COLORS = ["#FFF0F6", "#F0F4FF", "#FFF8E1", "#F0FFF4", "#F5F0FF"];
 
 const PREMIUM_GOLD = "#B8860B";
 const PREMIUM_BG = "#FFF9EC";
+
+const LIFF_TEAL = "#0EA5A5";
+const LIFF_BG = "#E9FBFA";
+
+/** 開啟 LIFF 頁面的項目（目前只有每日 Wordle）。跟 gameRow/premiumRow 不同的是用 uri action，不是文字指令。 */
+function uriRow(emoji: string, title: string, description: string, uri: string) {
+  return {
+    type: "box" as const,
+    layout: "horizontal" as const,
+    backgroundColor: LIFF_BG,
+    borderColor: LIFF_TEAL,
+    borderWidth: "1px",
+    cornerRadius: "lg" as const,
+    paddingAll: "10px",
+    spacing: "sm" as const,
+    alignItems: "center" as const,
+    action: {
+      type: "uri" as const,
+      uri,
+    },
+    contents: [
+      {
+        type: "text" as const,
+        text: emoji,
+        size: "xl" as const,
+        flex: 0,
+        gravity: "center" as const,
+      },
+      {
+        type: "box" as const,
+        layout: "vertical" as const,
+        flex: 1,
+        contents: [
+          { type: "text" as const, text: title, weight: "bold" as const, size: "sm" as const, color: "#333333" },
+          {
+            type: "text" as const,
+            text: description,
+            size: "xxs" as const,
+            color: "#888888",
+            wrap: true,
+          },
+        ],
+      },
+      {
+        type: "text" as const,
+        text: "▶",
+        size: "xs" as const,
+        color: LIFF_TEAL,
+        flex: 0,
+        gravity: "center" as const,
+      },
+    ],
+  };
+}
 
 /** 付費區的項目（目前只有小聚活動主持人）。點擊送出對應的純文字指令，跟使用者自己打字效果一致。 */
 function premiumRow(emoji: string, title: string, description: string, triggerText: string) {
@@ -135,6 +190,23 @@ function gameRow(game: GameDefinition, index: number) {
 
 export function buildPartyMenu(): messagingApi.Message {
   const games = listGames();
+  const env = loadEnv();
+  // 沒設定 LIFF_ID 時（例如本機開發還沒申請 LIFF app）就不要顯示這顆按鈕，
+  // 免得點下去打開一個沒用的連結。
+  const liffRows = env.LIFF_ID
+    ? [
+        { type: "separator" as const, margin: "md" as const },
+        {
+          type: "text" as const,
+          text: "🧩 網頁小遊戲",
+          size: "xxs" as const,
+          color: LIFF_TEAL,
+          weight: "bold" as const,
+          margin: "md" as const,
+        },
+        uriRow("🔤", "每日 Wordle", "5 字母猜猜看，跟群組一起拚排行榜", `https://liff.line.me/${env.LIFF_ID}`),
+      ]
+    : [];
 
   return {
     type: "flex",
@@ -174,6 +246,7 @@ export function buildPartyMenu(): messagingApi.Message {
         paddingAll: "12px",
         contents: [
           ...games.map((game, i) => gameRow(game, i)),
+          ...liffRows,
           { type: "separator", margin: "md" },
           {
             type: "text",
@@ -232,6 +305,10 @@ export function buildHelpText(): string {
   const gameLines = games
     .map((g) => `${g.emoji} ${g.displayName}：${g.shortDescription}`)
     .join("\n");
+  const env = loadEnv();
+  const wordleLine = env.LIFF_ID
+    ? `\n🧩 網頁小遊戲：選單上的「🔤 每日 Wordle」會開啟網頁版遊戲，5 次機會猜出今天的 5 字母單字，也可以直接輸入「wordle 排行」查看群組排行榜。`
+    : "";
 
   return (
     `📖 使用說明\n` +
@@ -243,6 +320,7 @@ export function buildHelpText(): string {
     `━━━━━━━━━━\n` +
     `目前的遊戲：\n${gameLines}\n` +
     `\n💎 進階功能：輸入「建立小聚」開始一場有主持人的活動，詳見選單上的付費區。` +
+    wordleLine +
     `\n之後還會有更多玩法陸續加入，敬請期待🎊`
   );
 }

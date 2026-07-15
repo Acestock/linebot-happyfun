@@ -40,10 +40,11 @@ model Group {
   isActive         Boolean   @default(true) @map("is_active")
   memoryClearedAt  DateTime? @map("memory_cleared_at")
 
-  members      GroupMember[]
-  memories     GroupMemory[]
-  gameSessions GameSession[]
-  meetups      Meetup[]
+  members        GroupMember[]
+  memories       GroupMemory[]
+  gameSessions   GameSession[]
+  meetups        Meetup[]
+  wordleAttempts WordleAttempt[]
 
   @@map("groups")
 }
@@ -65,6 +66,7 @@ model GroupMember {
   hostedMeetups   Meetup[]          @relation("MeetupHost")
   meetupCheckins  MeetupCheckin[]
   meetupFeedbacks MeetupFeedback[]
+  wordleAttempts  WordleAttempt[]
 
   @@unique([groupId, lineUserId])
   @@map("group_members")
@@ -214,4 +216,42 @@ model MeetupFeedback {
 
   @@unique([meetupId, memberId])
   @@map("meetup_feedback")
+}
+
+/// LIFF 每日 Wordle — 跟 game_sessions 一樣是刻意分開的平行資料模型：
+/// 每個玩家各自獨立解題（不是共用一份 Redis 狀態的輪流猜謎），且狀態要跨天保留
+/// 做排行榜，不適合套用遊戲引擎「一個群組同時只有一場、Redis TTL 到就消失」那套機制。
+model WordlePuzzle {
+  id        String   @id @default(uuid())
+  /// 台灣時區的日期字串（例如 "2026-07-16"），全部群組共用同一題，每天一題
+  date      String   @unique
+  answer    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  attempts WordleAttempt[]
+
+  @@map("wordle_puzzles")
+}
+
+model WordleAttempt {
+  id         String    @id @default(uuid())
+  puzzleId   String    @map("puzzle_id")
+  /// 跟 group_sessions/meetups 同樣的作法：groupId 直接落欄位，排行榜查詢不用多 join
+  groupId    String    @map("group_id")
+  memberId   String    @map("member_id")
+  /// 依序猜過的單字，例如 ["CRANE", "SLATE"]；每個字母的顏色回饋是 answer+guess 的
+  /// 純函式運算結果，不落地儲存，避免重複維護衍生資料
+  guesses    Json      @default("[]")
+  solved     Boolean   @default(false)
+  finishedAt DateTime? @map("finished_at")
+  durationMs Int?      @map("duration_ms")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  puzzle WordlePuzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  group  Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member GroupMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([puzzleId, memberId])
+  @@index([puzzleId, groupId])
+  @@map("wordle_attempts")
 }
