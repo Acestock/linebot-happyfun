@@ -4,6 +4,7 @@ import { logger } from "../utils/logger";
 import { sweepTimedOutGames } from "./gameTimeout";
 import { sweepIdleGroups } from "./idleNudge";
 import { sweepIdleMeetups } from "./meetupTimeout";
+import { sweepPhaseReminders } from "./meetupPhaseReminder";
 
 function everyNMinutes(n: number): string {
   const clamped = Math.min(Math.max(Math.round(n), 1), 59);
@@ -32,11 +33,19 @@ export function startSchedulers(): void {
     });
   }
 
+  // 小聚各階段時間快到時提醒主辦人，預設開啟；只提醒不自動推進，流程仍由主辦人手動控制
+  if (env.MEETUP_PHASE_REMINDER_ENABLED) {
+    cron.schedule(everyNMinutes(env.MEETUP_PHASE_REMINDER_SWEEP_INTERVAL_MINUTES), () => {
+      sweepPhaseReminders().catch((err) => logger.error({ err }, "meetup phase reminder sweep failed"));
+    });
+  }
+
   logger.info(
     {
       gameTimeoutEveryMin: env.GAME_TIMEOUT_SWEEP_INTERVAL_MINUTES,
       idleNudgeEnabled: env.IDLE_NUDGE_ENABLED,
       meetupIdleTimeoutEnabled: env.MEETUP_IDLE_TIMEOUT_ENABLED,
+      meetupPhaseReminderEnabled: env.MEETUP_PHASE_REMINDER_ENABLED,
     },
     "schedulers started",
   );

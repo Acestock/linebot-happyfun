@@ -35,6 +35,14 @@ const envSchema = z.object({
   MEETUP_IDLE_TIMEOUT_MINUTES: z.coerce.number().default(180),
   MEETUP_IDLE_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(15),
 
+  // 各階段時間快到時主動提醒主辦人，只提醒不自動推進（流程仍完全由主辦人手動控制）。預設開啟。
+  MEETUP_PHASE_REMINDER_ENABLED: z
+    .string()
+    .default("true")
+    .transform((v) => v === "true"),
+  MEETUP_PHASE_REMINDER_LEAD_MINUTES: z.coerce.number().default(5),
+  MEETUP_PHASE_REMINDER_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(5),
+
   INTERNAL_STATS_TOKEN: z.string().optional(),
   LIFF_ID: z.string().optional(),
 });

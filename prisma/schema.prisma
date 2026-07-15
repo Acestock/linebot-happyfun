@@ -174,6 +174,11 @@ model Meetup {
   startedAt            DateTime?    @map("started_at")
   endedAt              DateTime?    @map("ended_at")
 
+  /// 進入目前這個階段的時間點（推進/跳過/繼續時重設），排程用它算「這階段還剩多少預計時間」
+  phaseStartedAt       DateTime?    @map("phase_started_at")
+  /// 這個階段的「時間快到了」提醒是否已經發過，避免同一階段重複推播
+  phaseReminderSent    Boolean      @default(false) @map("phase_reminder_sent")
+
   group     Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
   host      GroupMember      @relation("MeetupHost", fields: [hostMemberId], references: [id])
   checkins  MeetupCheckin[]

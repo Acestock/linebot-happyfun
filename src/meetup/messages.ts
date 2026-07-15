@@ -8,6 +8,7 @@ import {
 } from "./questionBanks";
 import type { SetupStep } from "./setupWizard";
 import { STYLE_OPTIONS, TIME_OPTIONS } from "./setupWizard";
+import { buildScheduleLines } from "./schedule";
 
 /**
  * 所有面向使用者的文字模板 — 純函式，不接 AI、不做流程判斷，只負責「把資料排版成文字」。
@@ -49,6 +50,7 @@ export function buildCreationConfirmation(params: {
   icebreakerCategory: IcebreakerCategory;
   interactionType: InteractionType;
 }): string {
+  const scheduleLines = buildScheduleLines(params.plannedMinutes);
   return (
     `小聚活動已建立\n\n` +
     `活動名稱：${params.name}\n` +
@@ -57,6 +59,7 @@ export function buildCreationConfirmation(params: {
     `主持風格：${params.hostStyle}\n` +
     `破冰類型：${ICEBREAKER_CATEGORY_LABELS[params.icebreakerCategory]}\n` +
     `互動環節：${INTERACTION_TYPE_LABELS[params.interactionType]}\n\n` +
+    `活動流程時間表：\n${scheduleLines.join("\n")}\n\n` +
     `請由主辦人輸入「開始小聚」開始活動。`
   );
 }

@@ -31,6 +31,12 @@ describe("pickIcebreaker", () => {
     const q = pickIcebreaker("random", []);
     expect(q).toBeTruthy();
   });
+
+  it("ai_topic falls back to the static random pool (deterministic fallback path)", () => {
+    // pickIcebreaker 本身不打 AI，只是 ai_topic 分類失敗時的保底；實際 AI 出題見 icebreakerAI.test.ts
+    const q = pickIcebreaker("ai_topic", []);
+    expect(q).toBeTruthy();
+  });
 });
 
 describe("pickInteractionPrompt", () => {

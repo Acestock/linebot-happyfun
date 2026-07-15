@@ -1,9 +1,11 @@
 /**
  * 破冰題／互動題庫 — 靜態題庫，跟 games/quiz、games/emoji-riddle 的 fallback bank
- * 是同一種風格（純資料，無 I/O）。小聚不接 AI 出題，所有題目都來自這裡。
+ * 是同一種風格（純資料，無 I/O）。互動環節的流程控制永遠是狀態機說了算，不接 AI；
+ * 破冰題目的「文字內容」則多了 ai_topic 這個選項，讓 AI 根據活動主題出題
+ * （見 src/meetup/icebreakerAI.ts），LLM 沒設定或生成失敗時一律退回這裡的靜態題庫。
  */
 
-export type IcebreakerCategory = "daily" | "interest" | "work" | "random" | "custom";
+export type IcebreakerCategory = "daily" | "interest" | "work" | "random" | "custom" | "ai_topic";
 
 export const ICEBREAKER_CATEGORY_LABELS: Record<IcebreakerCategory, string> = {
   daily: "輕鬆日常",
@@ -11,9 +13,10 @@ export const ICEBREAKER_CATEGORY_LABELS: Record<IcebreakerCategory, string> = {
   work: "工作交流",
   random: "隨機題目",
   custom: "主辦人自訂",
+  ai_topic: "AI 根據主題出題",
 };
 
-const ICEBREAKER_BANK: Record<Exclude<IcebreakerCategory, "custom" | "random">, string[]> = {
+const ICEBREAKER_BANK: Record<Exclude<IcebreakerCategory, "custom" | "random" | "ai_topic">, string[]> = {
   daily: [
     "最近有沒有一件讓你覺得「還好我有去做」的事情？",
     "這個禮拜吃過最好吃的一餐是什麼？",
@@ -42,6 +45,10 @@ function randomIcebreakerPool(): string[] {
   return [...ICEBREAKER_BANK.daily, ...ICEBREAKER_BANK.interest, ...ICEBREAKER_BANK.work];
 }
 
+/**
+ * 靜態題庫的最終退路。ai_topic 分類實際出題邏輯在 src/meetup/icebreakerAI.ts，
+ * 這裡把它當 random 處理，作為 AI 沒設定或生成失敗時的保底（絕不讓破冰階段卡住）。
+ */
 export function pickIcebreaker(
   category: IcebreakerCategory,
   used: string[],
@@ -50,7 +57,7 @@ export function pickIcebreaker(
   if (category === "custom") {
     return customText ?? null;
   }
-  const pool = category === "random" ? randomIcebreakerPool() : ICEBREAKER_BANK[category];
+  const pool = category === "random" || category === "ai_topic" ? randomIcebreakerPool() : ICEBREAKER_BANK[category];
   const fresh = pool.filter((q) => !used.includes(q));
   const candidates = fresh.length > 0 ? fresh : pool;
   if (candidates.length === 0) return null;

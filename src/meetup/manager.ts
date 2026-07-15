@@ -5,9 +5,12 @@ import {
   canPause,
   isProgressable,
   isTerminal,
+  MEETUP_FLOW,
   nextPhaseAfter,
   phaseLabel,
 } from "./stateMachine";
+import { computePhaseBudgets } from "./schedule";
+import { generateAiIcebreaker } from "./icebreakerAI";
 import {
   INTERACTION_TYPE_LABELS,
   pickIcebreaker,
@@ -87,6 +90,7 @@ export type MeetupCardPayload =
       hostStyle: string;
       icebreakerCategory: IcebreakerCategory;
       interactionType: InteractionType;
+      scheduleBudgets: Record<(typeof MEETUP_FLOW)[number], number>;
     }
   | { kind: "opening"; name: string; plannedMinutes: number; interactionType: InteractionType }
   | { kind: "checkin" }
@@ -177,6 +181,21 @@ async function getMissingCheckins(meetup: Meetup): Promise<MissingCheckins> {
     activeMembers,
     checkins.map((c) => c.memberId),
   );
+}
+
+/**
+ * 出破冰題。ai_topic 分類會拿活動名稱當主題，請 AI 現場出題；LLM 沒設定 API key、
+ * 逾時、或兩次都被 moderation 擋下時一律退回靜態題庫，破冰階段永遠不會被卡住。
+ */
+async function pickIcebreakerQuestion(meetup: Meetup, used: string[]): Promise<string> {
+  const category = (meetup.icebreakerCategory as IcebreakerCategory) ?? "random";
+  if (category === "ai_topic") {
+    const topic = meetup.name ?? "小聚活動";
+    const hostStyle = meetup.hostStyle ?? "輕鬆";
+    const aiQuestion = await generateAiIcebreaker(topic, hostStyle, used);
+    if (aiQuestion !== null) return aiQuestion;
+  }
+  return pickIcebreaker(category, used, meetup.customIcebreakerText) ?? "分享一件最近讓你印象深刻的小事？";
 }
 
 async function getFeedbackBreakdown(meetupId: string): Promise<Record<string, number>> {
@@ -321,7 +340,16 @@ async function finishSetup(meetup: Meetup, lastStepData: Record<string, unknown>
   return {
     text,
     ui: { type: "ready" },
-    card: { kind: "created", name, hostDisplayName, plannedMinutes, hostStyle, icebreakerCategory, interactionType },
+    card: {
+      kind: "created",
+      name,
+      hostDisplayName,
+      plannedMinutes,
+      hostStyle,
+      icebreakerCategory,
+      interactionType,
+      scheduleBudgets: computePhaseBudgets(plannedMinutes),
+    },
   };
 }
 
@@ -329,13 +357,18 @@ async function finishSetup(meetup: Meetup, lastStepData: Record<string, unknown>
 // 主辦人操作
 // ---------------------------------------------------------------------------
 
+/** 每次進入一個新階段都要重設，讓時間提醒排程用它從頭算這階段的預計時間 */
+function phaseEntryData(): { phaseStartedAt: Date; phaseReminderSent: boolean } {
+  return { phaseStartedAt: new Date(), phaseReminderSent: false };
+}
+
 async function startMeetup(meetup: Meetup): Promise<MeetupReply> {
   if (meetup.phase !== MeetupPhase.READY) {
     return { text: `小聚目前是「${phaseLabel(meetup.phase)}」階段，還不能開始喔。`, ui: none() };
   }
   const updated = await prisma.meetup.update({
     where: { id: meetup.id },
-    data: { phase: MeetupPhase.OPENING, startedAt: new Date() },
+    data: { phase: MeetupPhase.OPENING, startedAt: new Date(), ...phaseEntryData() },
   });
   const name = updated.name ?? "小聚";
   const plannedMinutes = updated.plannedMinutes ?? 60;
@@ -354,16 +387,15 @@ async function enterPhase(
 ): Promise<{ meetup: Meetup; text: string; card?: MeetupCardPayload }> {
   switch (phase) {
     case MeetupPhase.CHECKIN: {
-      const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase } });
+      const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase, ...phaseEntryData() } });
       return { meetup: updated, text: CHECKIN_PROMPT_TEXT, card: { kind: "checkin" } };
     }
     case MeetupPhase.ICEBREAKER: {
-      const category = (meetup.icebreakerCategory as IcebreakerCategory) ?? "random";
       const used = Array.isArray(meetup.usedIcebreakers) ? (meetup.usedIcebreakers as string[]) : [];
-      const question = pickIcebreaker(category, used, meetup.customIcebreakerText) ?? "分享一件最近讓你印象深刻的小事？";
+      const question = await pickIcebreakerQuestion(meetup, used);
       const updated = await prisma.meetup.update({
         where: { id: meetup.id },
-        data: { phase, currentIcebreaker: question, usedIcebreakers: [...used, question] },
+        data: { phase, currentIcebreaker: question, usedIcebreakers: [...used, question], ...phaseEntryData() },
       });
       return {
         meetup: updated,
@@ -377,7 +409,7 @@ async function enterPhase(
         // 沒安排互動環節，直接視為進入自由交流
         const updated = await prisma.meetup.update({
           where: { id: meetup.id },
-          data: { phase: MeetupPhase.FREE_TALK },
+          data: { phase: MeetupPhase.FREE_TALK, ...phaseEntryData() },
         });
         return { meetup: updated, text: `${INTERACTION_SKIPPED_NONE_TEXT}\n\n${FREE_TALK_TEXT}` };
       }
@@ -387,7 +419,7 @@ async function enterPhase(
       const resolvedType = drawn?.resolvedType ?? type;
       const updated = await prisma.meetup.update({
         where: { id: meetup.id },
-        data: { phase, currentInteraction: prompt, usedInteractions: [...used, prompt] },
+        data: { phase, currentInteraction: prompt, usedInteractions: [...used, prompt], ...phaseEntryData() },
       });
       return {
         meetup: updated,
@@ -396,12 +428,12 @@ async function enterPhase(
       };
     }
     case MeetupPhase.FREE_TALK: {
-      const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase } });
+      const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase, ...phaseEntryData() } });
       return { meetup: updated, text: FREE_TALK_TEXT };
     }
     case MeetupPhase.CLOSING: {
       const checkinCount = await getCheckinCount(meetup.id);
-      const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase } });
+      const updated = await prisma.meetup.update({ where: { id: meetup.id }, data: { phase, ...phaseEntryData() } });
       return {
         meetup: updated,
         text: buildClosingSummary(checkinCount),
@@ -455,9 +487,8 @@ async function changeQuestion(meetup: Meetup): Promise<MeetupReply> {
         ui: { type: "host_controls", phase: meetup.phase },
       };
     }
-    const category = (meetup.icebreakerCategory as IcebreakerCategory) ?? "random";
     const used = Array.isArray(meetup.usedIcebreakers) ? (meetup.usedIcebreakers as string[]) : [];
-    const question = pickIcebreaker(category, used) ?? "分享一件最近讓你印象深刻的小事？";
+    const question = await pickIcebreakerQuestion(meetup, used);
     await prisma.meetup.update({
       where: { id: meetup.id },
       data: { currentIcebreaker: question, usedIcebreakers: [...used, question] },
@@ -510,7 +541,8 @@ async function resumeMeetup(meetup: Meetup): Promise<MeetupReply> {
   const restored = meetup.pausedFromPhase;
   await prisma.meetup.update({
     where: { id: meetup.id },
-    data: { phase: restored, pausedFromPhase: null },
+    // 暫停期間不算進階段時間預算，繼續時重設 phaseStartedAt，讓提醒排程從頭算
+    data: { phase: restored, pausedFromPhase: null, ...phaseEntryData() },
   });
   return { text: buildResumeText(restored), ui: { type: "host_controls", phase: restored } };
 }

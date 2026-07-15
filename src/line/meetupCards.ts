@@ -3,6 +3,7 @@ import type { messagingApi } from "@line/bot-sdk";
 import type { MeetupCardPayload } from "../meetup/manager";
 import { MEETUP_FLOW, phaseLabel } from "../meetup/stateMachine";
 import { ICEBREAKER_CATEGORY_LABELS, INTERACTION_TYPE_LABELS } from "../meetup/questionBanks";
+import { PHASE_EMOJI } from "../meetup/schedule";
 
 /**
  * 小聚活動的「高光時刻」Flex 卡片 — 獨立於 party/遊戲選單的色系，
@@ -92,6 +93,16 @@ function footerBox(contents: FlexBox[]): FlexBox {
 }
 
 function buildCreatedCard(p: Extract<MeetupCardPayload, { kind: "created" }>): FlexBox {
+  const scheduleRows = MEETUP_FLOW.map(
+    (phase) =>
+      ({
+        type: "text",
+        text: `${PHASE_EMOJI[phase]} ${phaseLabel(phase)}：${p.scheduleBudgets[phase]} 分鐘`,
+        size: "xs",
+        color: "#555555",
+      }) as FlexBox,
+  );
+
   return bubble(
     headerBox(COLOR.teal, "🎉 小聚活動已建立", p.name),
     bodyBox([
@@ -100,6 +111,9 @@ function buildCreatedCard(p: Extract<MeetupCardPayload, { kind: "created" }>): F
       detailRow("主持風格", p.hostStyle),
       detailRow("破冰類型", ICEBREAKER_CATEGORY_LABELS[p.icebreakerCategory]),
       detailRow("互動環節", INTERACTION_TYPE_LABELS[p.interactionType]),
+      { type: "separator", margin: "md" },
+      { type: "text", text: "活動流程時間表", weight: "bold", size: "sm", margin: "md" },
+      ...scheduleRows,
       { type: "text", text: "主辦人可以點下方按鈕，或輸入「開始小聚」開始活動", size: "xxs", color: "#999999", margin: "md", wrap: true },
     ]),
     footerBox([postbackButton("▶️ 開始活動", "start", "開始小聚", "primary", COLOR.teal)]),
