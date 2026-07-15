@@ -8,7 +8,10 @@
   </head>
   <body>
     <header class="header">
-      <h1>🔤 每日 Wordle</h1>
+      <div class="header-top">
+        <h1>🔤 每日 Wordle</h1>
+        <button id="help-button" class="help-button" aria-label="遊戲說明">❓</button>
+      </div>
       <p id="subtitle" class="subtitle">載入中…</p>
     </header>
 
@@ -24,6 +27,31 @@
         <button id="share-button" class="share-button">📤 分享到群組</button>
       </div>
     </main>
+
+    <div id="tutorial" class="modal-overlay" hidden>
+      <div class="modal">
+        <h2>怎麼玩？</h2>
+        <p>在 6 次機會內，猜出今天的 5 個字母英文單字。</p>
+
+        <p class="modal-label">每次猜測後，方塊顏色會告訴你猜得準不準：</p>
+        <div class="example-row">
+          <div class="tile correct">C</div>
+          <div class="tile">R</div>
+          <div class="tile present">A</div>
+          <div class="tile">N</div>
+          <div class="tile absent">E</div>
+        </div>
+        <ul class="legend">
+          <li><span class="dot correct"></span>綠色：字母對，位置也對</li>
+          <li><span class="dot present"></span>黃色：字母有在答案裡，位置不對</li>
+          <li><span class="dot absent"></span>灰色：答案裡沒有這個字母</li>
+        </ul>
+
+        <p>用下方鍵盤打字，湊滿 5 個字母後點「確認」送出。猜對或用完 6 次機會後遊戲結束，可以分享成績到群組，或在群組輸入「wordle 排行」看看大家的排名（依猜測次數、再依花費時間排序）。</p>
+
+        <button id="tutorial-close" class="tutorial-close">開始挑戰！</button>
+      </div>
+    </div>
 
     <!-- LIFF SDK：CDN 版本，沒有前端建構工具，直接引用官方腳本即可 -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>

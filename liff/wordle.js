@@ -13,7 +13,33 @@ const el = {
   finish: document.getElementById("finish"),
   finishText: document.getElementById("finish-text"),
   shareButton: document.getElementById("share-button"),
+  helpButton: document.getElementById("help-button"),
+  tutorial: document.getElementById("tutorial"),
+  tutorialClose: document.getElementById("tutorial-close"),
 };
+
+const TUTORIAL_SEEN_KEY = "wordle_tutorial_seen";
+
+function showTutorial() {
+  el.tutorial.hidden = false;
+}
+
+function hideTutorial() {
+  el.tutorial.hidden = true;
+  try {
+    localStorage.setItem(TUTORIAL_SEEN_KEY, "1");
+  } catch (err) {
+    // 有些瀏覽器的隱私模式會擋 localStorage，擋掉也不影響遊戲本身，只是每次都會再彈一次說明
+  }
+}
+
+function hasSeenTutorial() {
+  try {
+    return localStorage.getItem(TUTORIAL_SEEN_KEY) === "1";
+  } catch (err) {
+    return false;
+  }
+}
 
 const state = {
   groupId: null,
@@ -309,11 +335,18 @@ async function init() {
 }
 
 el.shareButton.addEventListener("click", shareResult);
+el.helpButton.addEventListener("click", showTutorial);
+el.tutorialClose.addEventListener("click", hideTutorial);
+
+// 說明彈窗是純靜態內容，不用等 LIFF/API 都載入完成，第一次進來就先彈一次
+if (!hasSeenTutorial()) {
+  showTutorial();
+}
 
 // 桌機瀏覽器測試用：支援實體鍵盤輸入（LIFF 在外部瀏覽器開啟時沒有群組context，
 // 但畫面/輸入邏輯本身還是可以這樣驗證）
 document.addEventListener("keydown", (e) => {
-  if (el.keyboard.hidden) return;
+  if (el.keyboard.hidden || !el.tutorial.hidden) return;
   if (e.key === "Enter") handleKey("ENTER");
   else if (e.key === "Backspace") handleKey("BACK");
   else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase());
