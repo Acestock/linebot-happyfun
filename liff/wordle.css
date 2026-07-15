@@ -97,11 +97,17 @@ main {
 }
 
 .grid {
-  display: grid;
   grid-template-rows: repeat(6, 1fr);
   gap: 6px;
   width: 100%;
   max-width: 300px;
+}
+
+/* [hidden] 元素預設是 display:none，但如果同一個選擇器又設了 display，author CSS
+   會蓋過 UA 的 [hidden] 規則，導致元素永遠顯示——用 :not([hidden]) 包住 display
+   宣告，才不會讓 hidden 屬性失效（.keyboard / .modal-overlay 同理）。 */
+.grid:not([hidden]) {
+  display: grid;
 }
 
 .row {
@@ -164,10 +170,13 @@ main {
 }
 
 .keyboard {
-  display: flex;
   flex-direction: column;
   gap: 6px;
   width: 100%;
+}
+
+.keyboard:not([hidden]) {
+  display: flex;
 }
 
 .keyboard-row {
@@ -241,11 +250,14 @@ main {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   z-index: 10;
+}
+
+.modal-overlay:not([hidden]) {
+  display: flex;
 }
 
 .modal {
