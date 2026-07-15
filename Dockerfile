@@ -23,6 +23,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/liff ./liff
 RUN npx prisma generate
 
 EXPOSE 3000
