@@ -91,6 +91,10 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 
 **LIFF app 現在不能掛在 Messaging API channel（就是機器人本身那個 channel）底下**，LINE 平台改成一定要透過 LINE Login channel：在 LINE Developers Console 同一個 Provider 底下另外建立一個 LINE Login channel，LIFF app 是建在那個 channel 的「LIFF」分頁裡（Endpoint URL 指到 `https://<你的網域>/liff/`，Scope 記得勾 `openid` 才拿得到 ID token）。把建好後拿到的 `LIFF_ID`，和這個 LINE Login channel 的 Channel ID（`LIFF_CHANNEL_ID`，在它自己的 Basic settings 分頁）填進 Railway Variables；沒填 `LIFF_ID` 時，`party` 選單不會顯示這顆按鈕（不會給使用者一個打不開的死連結）。完整步驟見 `.env.example` 裡的註解。
 
+> ⚠️ **常見部署踩雷**：
+> 1. `LIFF_CHANNEL_ID` 要填**純數字**的 Channel ID，不是 LINE 建立 LIFF app 後顯示的完整網址（`https://liff.line.me/xxxxxxxxxx-yyyyyyyy`）。LIFF ID 本身格式就是 `{Channel ID}-{隨機字串}`，網址裡第一個 `-` 前面那段數字就是 Channel ID，可以直接拿來用。填錯的症狀是：LIFF 頁面打得開，但一直卡在「身分驗證失敗，請關閉頁面重新從群組按鈕打開」。
+> 2. `liff/` 目錄是純靜態檔案、故意不進 TypeScript build，`Dockerfile` 的正式環境 stage 要記得把它一起 `COPY` 進最終 image（不能只複製 `dist/`），不然 `/liff` 路徑在正式環境會回 404「Cannot GET /liff」。
+
 下面第 1 節是**完整、不需要在自己電腦上跑程式**的上線流程：建一個全新的 LINE 官方帳號，把這個 repo 直接部署到 Railway，兩邊接起來就能在真實 LINE 群組裡試用。本機開發（要改程式碼、加新功能時才需要）在第 4 節。
 
 ---
