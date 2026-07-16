@@ -17,52 +17,82 @@ const PREMIUM_BG = "#FFF9EC";
 const LIFF_TEAL = "#0EA5A5";
 const LIFF_BG = "#E9FBFA";
 
-/** 開啟 LIFF 頁面的項目（目前只有每日 Wordle）。跟 gameRow/premiumRow 不同的是用 uri action，不是文字指令。 */
-function uriRow(emoji: string, title: string, description: string, uri: string) {
+/**
+ * 開啟 LIFF 頁面的項目卡（目前有每日 Wordle、每日 1A2B）。除了打開遊戲的主要區塊
+ * （uri action）以外，底下再附一條細長的「查看排行榜」次要按鈕（message action，
+ * 效果等同直接在群組打「wordle 排行」）——兩個各自獨立的可點擊區域包在同一張卡片裡。
+ */
+function liffGameCard(emoji: string, title: string, description: string, uri: string, leaderboardCommand: string) {
   return {
     type: "box" as const,
-    layout: "horizontal" as const,
+    layout: "vertical" as const,
     backgroundColor: LIFF_BG,
     borderColor: LIFF_TEAL,
     borderWidth: "1px",
     cornerRadius: "lg" as const,
-    paddingAll: "10px",
-    spacing: "sm" as const,
-    alignItems: "center" as const,
-    action: {
-      type: "uri" as const,
-      uri,
-    },
+    paddingAll: "8px",
+    spacing: "xs" as const,
     contents: [
       {
-        type: "text" as const,
-        text: emoji,
-        size: "xl" as const,
-        flex: 0,
-        gravity: "center" as const,
-      },
-      {
         type: "box" as const,
-        layout: "vertical" as const,
-        flex: 1,
+        layout: "horizontal" as const,
+        spacing: "xs" as const,
+        alignItems: "center" as const,
+        action: {
+          type: "uri" as const,
+          uri,
+        },
         contents: [
-          { type: "text" as const, text: title, weight: "bold" as const, size: "sm" as const, color: "#333333" },
           {
             type: "text" as const,
-            text: description,
+            text: emoji,
+            size: "lg" as const,
+            flex: 0,
+            gravity: "center" as const,
+          },
+          {
+            type: "box" as const,
+            layout: "vertical" as const,
+            flex: 1,
+            contents: [
+              { type: "text" as const, text: title, weight: "bold" as const, size: "sm" as const, color: "#333333" },
+              {
+                type: "text" as const,
+                text: description,
+                size: "xxs" as const,
+                color: "#888888",
+                wrap: true,
+              },
+            ],
+          },
+          {
+            type: "text" as const,
+            text: "▶",
             size: "xxs" as const,
-            color: "#888888",
-            wrap: true,
+            color: LIFF_TEAL,
+            flex: 0,
+            gravity: "center" as const,
           },
         ],
       },
       {
-        type: "text" as const,
-        text: "▶",
-        size: "xs" as const,
-        color: LIFF_TEAL,
-        flex: 0,
-        gravity: "center" as const,
+        type: "box" as const,
+        layout: "horizontal" as const,
+        justifyContent: "center" as const,
+        paddingAll: "2px",
+        action: {
+          type: "message" as const,
+          text: leaderboardCommand,
+        },
+        contents: [
+          {
+            type: "text" as const,
+            text: "📊 查看排行榜",
+            size: "xxs" as const,
+            color: LIFF_TEAL,
+            weight: "bold" as const,
+          },
+        ],
       },
     ],
   };
@@ -77,8 +107,8 @@ function premiumRow(emoji: string, title: string, description: string, triggerTe
     borderColor: PREMIUM_GOLD,
     borderWidth: "1px",
     cornerRadius: "lg" as const,
-    paddingAll: "10px",
-    spacing: "sm" as const,
+    paddingAll: "8px",
+    spacing: "xs" as const,
     alignItems: "center" as const,
     action: {
       type: "message" as const,
@@ -88,7 +118,7 @@ function premiumRow(emoji: string, title: string, description: string, triggerTe
       {
         type: "text" as const,
         text: emoji,
-        size: "xl" as const,
+        size: "lg" as const,
         flex: 0,
         gravity: "center" as const,
       },
@@ -124,7 +154,7 @@ function premiumRow(emoji: string, title: string, description: string, triggerTe
       {
         type: "text" as const,
         text: "▶",
-        size: "xs" as const,
+        size: "xxs" as const,
         color: PREMIUM_GOLD,
         flex: 0,
         gravity: "center" as const,
@@ -139,8 +169,8 @@ function gameRow(game: GameDefinition, index: number) {
     layout: "horizontal" as const,
     backgroundColor: ROW_COLORS[index % ROW_COLORS.length],
     cornerRadius: "lg" as const,
-    paddingAll: "10px",
-    spacing: "sm" as const,
+    paddingAll: "8px",
+    spacing: "xs" as const,
     alignItems: "center" as const,
     action: {
       type: "postback" as const,
@@ -151,7 +181,7 @@ function gameRow(game: GameDefinition, index: number) {
       {
         type: "text" as const,
         text: game.emoji,
-        size: "xl" as const,
+        size: "lg" as const,
         flex: 0,
         gravity: "center" as const,
       },
@@ -179,7 +209,7 @@ function gameRow(game: GameDefinition, index: number) {
       {
         type: "text" as const,
         text: "▶",
-        size: "xs" as const,
+        size: "xxs" as const,
         color: "#9C6ADE",
         flex: 0,
         gravity: "center" as const,
@@ -195,10 +225,22 @@ export function buildPartyMenu(): messagingApi.Message {
   // 沒設定就不顯示那顆按鈕，免得點下去打開一個沒用的連結。
   const liffGameRows = [
     env.LIFF_ID
-      ? uriRow("🔤", "每日 Wordle", "5 字母猜猜看，跟群組一起拚排行榜", `https://liff.line.me/${env.LIFF_ID}`)
+      ? liffGameCard(
+          "🔤",
+          "每日 Wordle",
+          "5 字母猜猜看，跟群組一起拚排行榜",
+          `https://liff.line.me/${env.LIFF_ID}`,
+          "wordle 排行",
+        )
       : null,
     env.LIFF_ID_ONE_A_TWO_B
-      ? uriRow("🔐", "每日 1A2B", "猜 4 位不重複數字密碼，幾A幾B推理出答案", `https://liff.line.me/${env.LIFF_ID_ONE_A_TWO_B}`)
+      ? liffGameCard(
+          "🔐",
+          "每日 1A2B",
+          "猜 4 位不重複數字密碼，幾A幾B推理出答案",
+          `https://liff.line.me/${env.LIFF_ID_ONE_A_TWO_B}`,
+          "1a2b 排行",
+        )
       : null,
   ].filter((row): row is NonNullable<typeof row> => row !== null);
 
@@ -252,7 +294,7 @@ export function buildPartyMenu(): messagingApi.Message {
       body: {
         type: "box",
         layout: "vertical",
-        spacing: "sm",
+        spacing: "xs",
         paddingAll: "12px",
         contents: [
           ...games.map((game, i) => gameRow(game, i)),
