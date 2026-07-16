@@ -18,6 +18,22 @@ const LIFF_TEAL = "#0EA5A5";
 const LIFF_BG = "#E9FBFA";
 
 /**
+ * 選單列表寸土寸金，備註說明一律鎖死一行：wrap+maxLines 是 LINE Flex 自己按實際
+ * 渲染寬度算截斷點、超出就補「…」，比自己土法猜字數準，也不會被迫換行撐高整列。
+ * 完整說明還是看 buildHelpText()（「📖 說明」按鈕），不受這裡影響。
+ */
+function menuDescriptionText(text: string, color: string) {
+  return {
+    type: "text" as const,
+    text,
+    size: "xxs" as const,
+    color,
+    wrap: true,
+    maxLines: 1,
+  };
+}
+
+/**
  * 開啟 LIFF 頁面的項目卡（目前有每日 Wordle、每日 1A2B）。除了打開遊戲的主要區塊
  * （uri action）以外，底下再附一條細長的「查看排行榜」次要按鈕（message action，
  * 效果等同直接在群組打「wordle 排行」）——兩個各自獨立的可點擊區域包在同一張卡片裡。
@@ -30,8 +46,8 @@ function liffGameCard(emoji: string, title: string, description: string, uri: st
     borderColor: LIFF_TEAL,
     borderWidth: "1px",
     cornerRadius: "lg" as const,
-    paddingAll: "8px",
-    spacing: "xs" as const,
+    paddingAll: "6px",
+    spacing: "xxs" as const,
     contents: [
       {
         type: "box" as const,
@@ -46,7 +62,7 @@ function liffGameCard(emoji: string, title: string, description: string, uri: st
           {
             type: "text" as const,
             text: emoji,
-            size: "lg" as const,
+            size: "md" as const,
             flex: 0,
             gravity: "center" as const,
           },
@@ -55,14 +71,8 @@ function liffGameCard(emoji: string, title: string, description: string, uri: st
             layout: "vertical" as const,
             flex: 1,
             contents: [
-              { type: "text" as const, text: title, weight: "bold" as const, size: "sm" as const, color: "#333333" },
-              {
-                type: "text" as const,
-                text: description,
-                size: "xxs" as const,
-                color: "#888888",
-                wrap: true,
-              },
+              { type: "text" as const, text: title, weight: "bold" as const, size: "xs" as const, color: "#333333" },
+              menuDescriptionText(description, "#888888"),
             ],
           },
           {
@@ -79,7 +89,7 @@ function liffGameCard(emoji: string, title: string, description: string, uri: st
         type: "box" as const,
         layout: "horizontal" as const,
         justifyContent: "center" as const,
-        paddingAll: "2px",
+        paddingAll: "0px",
         action: {
           type: "message" as const,
           text: leaderboardCommand,
@@ -107,7 +117,7 @@ function premiumRow(emoji: string, title: string, description: string, triggerTe
     borderColor: PREMIUM_GOLD,
     borderWidth: "1px",
     cornerRadius: "lg" as const,
-    paddingAll: "8px",
+    paddingAll: "6px",
     spacing: "xs" as const,
     alignItems: "center" as const,
     action: {
@@ -118,7 +128,7 @@ function premiumRow(emoji: string, title: string, description: string, triggerTe
       {
         type: "text" as const,
         text: emoji,
-        size: "lg" as const,
+        size: "md" as const,
         flex: 0,
         gravity: "center" as const,
       },
@@ -132,7 +142,7 @@ function premiumRow(emoji: string, title: string, description: string, triggerTe
             layout: "horizontal" as const,
             spacing: "xs" as const,
             contents: [
-              { type: "text" as const, text: title, weight: "bold" as const, size: "sm" as const, color: "#333333" },
+              { type: "text" as const, text: title, weight: "bold" as const, size: "xs" as const, color: "#333333" },
               {
                 type: "text" as const,
                 text: "💎 付費",
@@ -142,13 +152,7 @@ function premiumRow(emoji: string, title: string, description: string, triggerTe
               },
             ],
           },
-          {
-            type: "text" as const,
-            text: description,
-            size: "xxs" as const,
-            color: "#888888",
-            wrap: true,
-          },
+          menuDescriptionText(description, "#888888"),
         ],
       },
       {
@@ -169,7 +173,7 @@ function gameRow(game: GameDefinition, index: number) {
     layout: "horizontal" as const,
     backgroundColor: ROW_COLORS[index % ROW_COLORS.length],
     cornerRadius: "lg" as const,
-    paddingAll: "8px",
+    paddingAll: "6px",
     spacing: "xs" as const,
     alignItems: "center" as const,
     action: {
@@ -181,7 +185,7 @@ function gameRow(game: GameDefinition, index: number) {
       {
         type: "text" as const,
         text: game.emoji,
-        size: "lg" as const,
+        size: "md" as const,
         flex: 0,
         gravity: "center" as const,
       },
@@ -194,16 +198,10 @@ function gameRow(game: GameDefinition, index: number) {
             type: "text" as const,
             text: game.displayName,
             weight: "bold" as const,
-            size: "sm" as const,
+            size: "xs" as const,
             color: "#333333",
           },
-          {
-            type: "text" as const,
-            text: game.shortDescription,
-            size: "xxs" as const,
-            color: "#888888",
-            wrap: true,
-          },
+          menuDescriptionText(game.shortDescription, "#888888"),
         ],
       },
       {
