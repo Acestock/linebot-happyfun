@@ -66,14 +66,14 @@ MVP 範圍：終極密碼（猜數字）＋開場白／閒置主動互動＋AI �
 │   ├── webhook/
 │   │   └── lineWebhook.ts        # 簽章驗證 + event router
 │   ├── api/
-│   │   └── routes/               # 給 LIFF 呼叫的 REST endpoint（/api/ping、/api/wordle/*）
+│   │   └── routes/               # 給 LIFF 呼叫的 REST endpoint（/api/ping、/api/wordle/*、/api/one-a-two-b/*）
 │   └── utils/logger.ts
 ├── prisma/
 │   └── schema.prisma
 ├── liff/                         # 獨立前端專案（純 HTML/CSS/JS，不進 TS build）
 │   ├── index.html                # 每日 Wordle 頁面（原規劃是 hello world，後來直接做成正式功能）
-│   ├── wordle.css
-│   └── wordle.js
+│   ├── wordle.css / wordle.js
+│   └── one-a-two-b/              # 每日 1A2B 頁面，獨立子目錄對應獨立的 LIFF app
 ├── docker-compose.yml            # 本機 Postgres + Redis
 ├── Dockerfile
 ├── railway.json
@@ -287,7 +287,8 @@ interface GameEngine<TConfig, TState, TMoveInput, TResult> {
 | `GAME_TIMEOUT_MINUTES` / `GAME_TIMEOUT_SWEEP_INTERVAL_MINUTES` | `.env` | Railway Variables |
 | `INTERNAL_STATS_TOKEN`（保護內部統計 endpoint） | `.env` | Railway Variables |
 | `LIFF_ID`（每日 Wordle LIFF app 的 ID） | `.env` | Railway Variables |
-| `LIFF_CHANNEL_ID`（該 LIFF app 掛的 Channel ID，驗證 ID token 用） | `.env` | Railway Variables |
+| `LIFF_ID_ONE_A_TWO_B`（每日 1A2B LIFF app 的 ID，同一個 LINE Login channel 底下另開一個） | `.env` | Railway Variables |
+| `LIFF_CHANNEL_ID`（該 LINE Login channel 的 Channel ID，兩個 LIFF app 共用，驗證 ID token 用） | `.env` | Railway Variables |
 
 ---
 

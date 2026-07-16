@@ -191,22 +191,32 @@ function gameRow(game: GameDefinition, index: number) {
 export function buildPartyMenu(): messagingApi.Message {
   const games = listGames();
   const env = loadEnv();
-  // 沒設定 LIFF_ID 時（例如本機開發還沒申請 LIFF app）就不要顯示這顆按鈕，
-  // 免得點下去打開一個沒用的連結。
-  const liffRows = env.LIFF_ID
-    ? [
-        { type: "separator" as const, margin: "md" as const },
-        {
-          type: "text" as const,
-          text: "🧩 網頁小遊戲",
-          size: "xxs" as const,
-          color: LIFF_TEAL,
-          weight: "bold" as const,
-          margin: "md" as const,
-        },
-        uriRow("🔤", "每日 Wordle", "5 字母猜猜看，跟群組一起拚排行榜", `https://liff.line.me/${env.LIFF_ID}`),
-      ]
-    : [];
+  // 每個 LIFF 小遊戲各自檢查有沒有設定對應的 LIFF_ID（例如本機開發還沒申請），
+  // 沒設定就不顯示那顆按鈕，免得點下去打開一個沒用的連結。
+  const liffGameRows = [
+    env.LIFF_ID
+      ? uriRow("🔤", "每日 Wordle", "5 字母猜猜看，跟群組一起拚排行榜", `https://liff.line.me/${env.LIFF_ID}`)
+      : null,
+    env.LIFF_ID_ONE_A_TWO_B
+      ? uriRow("🔐", "每日 1A2B", "猜 4 位不重複數字密碼，幾A幾B推理出答案", `https://liff.line.me/${env.LIFF_ID_ONE_A_TWO_B}`)
+      : null,
+  ].filter((row): row is NonNullable<typeof row> => row !== null);
+
+  const liffRows =
+    liffGameRows.length > 0
+      ? [
+          { type: "separator" as const, margin: "md" as const },
+          {
+            type: "text" as const,
+            text: "🧩 網頁小遊戲",
+            size: "xxs" as const,
+            color: LIFF_TEAL,
+            weight: "bold" as const,
+            margin: "md" as const,
+          },
+          ...liffGameRows,
+        ]
+      : [];
 
   return {
     type: "flex",
@@ -306,9 +316,15 @@ export function buildHelpText(): string {
     .map((g) => `${g.emoji} ${g.displayName}：${g.shortDescription}`)
     .join("\n");
   const env = loadEnv();
-  const wordleLine = env.LIFF_ID
-    ? `\n🧩 網頁小遊戲：選單上的「🔤 每日 Wordle」會開啟網頁版遊戲，5 次機會猜出今天的 5 字母單字，也可以直接輸入「wordle 排行」查看群組排行榜。`
-    : "";
+  const liffLines = [
+    env.LIFF_ID
+      ? `🔤 每日 Wordle：5 次機會猜出今天的 5 字母單字，輸入「wordle 排行」查看群組排行榜。`
+      : null,
+    env.LIFF_ID_ONE_A_TWO_B
+      ? `🔐 每日 1A2B：猜一組 4 位不重複的數字密碼，10 次機會內用幾A幾B推理出答案，輸入「1a2b 排行」查看群組排行榜。`
+      : null,
+  ].filter((line): line is string => line !== null);
+  const liffSection = liffLines.length > 0 ? `\n🧩 網頁小遊戲（選單上點開）：\n${liffLines.join("\n")}` : "";
 
   return (
     `📖 使用說明\n` +
@@ -320,7 +336,7 @@ export function buildHelpText(): string {
     `━━━━━━━━━━\n` +
     `目前的遊戲：\n${gameLines}\n` +
     `\n💎 進階功能：輸入「建立小聚」開始一場有主持人的活動，詳見選單上的付費區。` +
-    wordleLine +
+    liffSection +
     `\n之後還會有更多玩法陸續加入，敬請期待🎊`
   );
 }

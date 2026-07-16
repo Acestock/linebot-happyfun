@@ -4,7 +4,7 @@ LINE 群組「氣氛組」機器人 — 主持小遊戲、炒熱聊天氣氛，A
 
 架構規劃與設計理由請見 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。本 README 只涵蓋「如何跑起來」。
 
-目前進度：**MVP 四個階段全部完成 + 5 款文字遊戲 + 小聚活動主持人 + 每日 Wordle（LIFF）**。
+目前進度：**MVP 四個階段全部完成 + 5 款文字遊戲 + 小聚活動主持人 + 2 款 LIFF 網頁小遊戲（每日 Wordle、每日 1A2B）**。
 
 開場白、獲勝宣布、中止收尾由 GPT-4o 以「阿密」人設即時生成（附防護規則與長度限制）；每次猜測/搶答的即時判定回饋維持固定文案（不耗 API、零延遲）。**沒有設定 `OPENAI_API_KEY` 時自動使用內建文案／內建題庫**，遊戲功能完全不受影響。要啟用 AI 文案與 AI 出題，在 Railway Variables 加上 `OPENAI_API_KEY`（[OpenAI Platform](https://platform.openai.com/api-keys) 申請）。
 
@@ -91,9 +91,18 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 
 **LIFF app 現在不能掛在 Messaging API channel（就是機器人本身那個 channel）底下**，LINE 平台改成一定要透過 LINE Login channel：在 LINE Developers Console 同一個 Provider 底下另外建立一個 LINE Login channel，LIFF app 是建在那個 channel 的「LIFF」分頁裡（Endpoint URL 指到 `https://<你的網域>/liff/`，Scope 記得勾 `openid` 才拿得到 ID token）。把建好後拿到的 `LIFF_ID`，和這個 LINE Login channel 的 Channel ID（`LIFF_CHANNEL_ID`，在它自己的 Basic settings 分頁）填進 Railway Variables；沒填 `LIFF_ID` 時，`party` 選單不會顯示這顆按鈕（不會給使用者一個打不開的死連結）。完整步驟見 `.env.example` 裡的註解。
 
-> ⚠️ **常見部署踩雷**：
+> ⚠️ **常見部署踩雷**（這幾個是實際上線時真的遇過的）：
 > 1. `LIFF_CHANNEL_ID` 要填**純數字**的 Channel ID，不是 LINE 建立 LIFF app 後顯示的完整網址（`https://liff.line.me/xxxxxxxxxx-yyyyyyyy`）。LIFF ID 本身格式就是 `{Channel ID}-{隨機字串}`，網址裡第一個 `-` 前面那段數字就是 Channel ID，可以直接拿來用。填錯的症狀是：LIFF 頁面打得開，但一直卡在「身分驗證失敗，請關閉頁面重新從群組按鈕打開」。
 > 2. `liff/` 目錄是純靜態檔案、故意不進 TypeScript build，`Dockerfile` 的正式環境 stage 要記得把它一起 `COPY` 進最終 image（不能只複製 `dist/`），不然 `/liff` 路徑在正式環境會回 404「Cannot GET /liff」。
+> 3. 寫 LIFF 頁面的 CSS 時，凡是會被 JS 用 `hidden` 屬性切換顯示/隱藏的元素，`display` 宣告一定要包在 `selector:not([hidden])` 裡面，不能直接寫在 `selector { display: ... }` 上——author CSS 的 `display` 宣告會蓋過 `[hidden]` 的瀏覽器預設隱藏效果，導致該元素永遠顯示、`hidden = true` 完全沒用（症狀：彈窗跳出來就再也關不掉，把整個畫面擋住）。
+
+## 每日 1A2B（LIFF 網頁小遊戲）
+
+架構跟每日 Wordle **完全一樣**（同一套模式再做一次）：每天一組 4 位不重複數字的密碼，全部群組共用，每個人在 LIFF 頁面裡各自用 10 次機會猜，猜完一次會標色回饋——🟩（A）數字對、位置也對；🟨（B）數字有出現、位置不對；⬜ 密碼裡沒有這個數字。跟經典 1A2B 桌遊不同的是，這裡是**逐位標色**而不是只回一個「幾A幾B」的總數，因為要對齊 Wordle 那種格子視覺化的玩法。解完可以分享成績回群組，或在群組輸入 `1a2b 排行` 查看排行榜。
+
+資料模型（`OneATwoBPuzzle` / `OneATwoBAttempt`）、`src/one-a-two-b/logic.ts`（含跟 Wordle 同一套雙輪演算法算出每一位數字的回饋，避免猜測數字重複時誤判）、`manager.ts`、`messages.ts`、REST API（`/api/one-a-two-b/*`）都是照著 Wordle 那一套原封不動再做一份，兩邊刻意保持獨立（`src/wordle/` 跟 `src/one-a-two-b/` 互不 import），之後要各自調整規則不會互相影響。
+
+**LIFF app 設定要多做一步，但不用整套重來**：一個 LIFF app 只能對應一個固定網址，Wordle 跟 1A2B 沒辦法共用同一個 LIFF app，但兩者可以掛在**同一個** LINE Login channel 底下（該 channel 的 LIFF 分頁可以「Add」加開好幾個 LIFF app）。所以只需要：進到申請 Wordle 時建立的那個 LINE Login channel，在 LIFF 分頁再新增一個 LIFF app（Endpoint URL 填 `https://<你的網域>/liff/one-a-two-b/`，Scope 一樣勾 `openid`），把拿到的 LIFF ID 填進 `LIFF_ID_ONE_A_TWO_B`；`LIFF_CHANNEL_ID` 不用重填，兩個遊戲共用同一個值。完整步驟見 `.env.example` 裡的註解。
 
 下面第 1 節是**完整、不需要在自己電腦上跑程式**的上線流程：建一個全新的 LINE 官方帳號，把這個 repo 直接部署到 Railway，兩邊接起來就能在真實 LINE 群組裡試用。本機開發（要改程式碼、加新功能時才需要）在第 4 節。
 
@@ -264,9 +273,12 @@ src/
 ├── webhook/            # LINE webhook（簽章驗證 + 事件處理）
 ├── meetup/             # 小聚活動主持人（狀態機、Flex 卡片、排程）
 ├── wordle/             # 每日 Wordle（純邏輯、DB orchestration）
-└── api/routes/          # 給 LIFF 用的 REST API（/api/ping、/api/wordle/*）
+├── one-a-two-b/        # 每日 1A2B（純邏輯、DB orchestration，跟 wordle/ 同架構、互不依賴）
+└── api/routes/          # 給 LIFF 用的 REST API（/api/ping、/api/wordle/*、/api/one-a-two-b/*）
 prisma/schema.prisma      # 資料庫 schema
 liff/                      # LIFF 前端（純 HTML/CSS/JS，不在 TS build 範圍內，見 tsconfig.json exclude）
+├── index.html / wordle.css / wordle.js       # 每日 Wordle
+└── one-a-two-b/                              # 每日 1A2B（獨立子目錄，對應獨立的 LIFF app）
 ```
 
 ### 4.6 本機 / Railway 怎麼切換

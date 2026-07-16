@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { createWordleRouter } from "./wordle";
+import { createOneATwoBRouter } from "./oneATwoB";
 
 /**
  * Shared REST API surface for the LIFF frontend (liff/).
@@ -12,6 +13,7 @@ export function createApiRouter(): Router {
   });
 
   router.use("/wordle", createWordleRouter());
+  router.use("/one-a-two-b", createOneATwoBRouter());
 
   return router;
 }

@@ -18,6 +18,11 @@ import {
 } from "../meetup/manager";
 import { getLeaderboard } from "../wordle/manager";
 import { buildLeaderboardText, isWordleLeaderboardCommand } from "../wordle/messages";
+import { getLeaderboard as getOneATwoBLeaderboard } from "../one-a-two-b/manager";
+import {
+  buildLeaderboardText as buildOneATwoBLeaderboardText,
+  isOneATwoBLeaderboardCommand,
+} from "../one-a-two-b/messages";
 
 const GREETING =
   "嗨嗨～我是這個群組的氣氛組🎉\n" +
@@ -137,6 +142,12 @@ async function handleEvent(event: webhook.Event): Promise<void> {
     if (isWordleLeaderboardCommand(text)) {
       const leaderboard = await getLeaderboard(group.id);
       await replyText(event.replyToken, buildLeaderboardText(leaderboard));
+      return;
+    }
+
+    if (isOneATwoBLeaderboardCommand(text)) {
+      const leaderboard = await getOneATwoBLeaderboard(group.id);
+      await replyText(event.replyToken, buildOneATwoBLeaderboardText(leaderboard));
       return;
     }
 

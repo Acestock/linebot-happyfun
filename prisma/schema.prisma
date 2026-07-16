@@ -40,11 +40,12 @@ model Group {
   isActive         Boolean   @default(true) @map("is_active")
   memoryClearedAt  DateTime? @map("memory_cleared_at")
 
-  members        GroupMember[]
-  memories       GroupMemory[]
-  gameSessions   GameSession[]
-  meetups        Meetup[]
-  wordleAttempts WordleAttempt[]
+  members          GroupMember[]
+  memories         GroupMemory[]
+  gameSessions     GameSession[]
+  meetups          Meetup[]
+  wordleAttempts   WordleAttempt[]
+  oneATwoBAttempts OneATwoBAttempt[]
 
   @@map("groups")
 }
@@ -67,6 +68,7 @@ model GroupMember {
   meetupCheckins  MeetupCheckin[]
   meetupFeedbacks MeetupFeedback[]
   wordleAttempts  WordleAttempt[]
+  oneATwoBAttempts OneATwoBAttempt[]
 
   @@unique([groupId, lineUserId])
   @@map("group_members")
@@ -254,4 +256,41 @@ model WordleAttempt {
   @@unique([puzzleId, memberId])
   @@index([puzzleId, groupId])
   @@map("wordle_attempts")
+}
+
+/// LIFF 每日 1A2B（猜數字密碼）— 跟 WordlePuzzle/WordleAttempt 完全同樣的形狀與理由：
+/// 每個玩家各自獨立解題、狀態要跨天留著算排行榜，是自己一套平行資料模型。
+model OneATwoBPuzzle {
+  id        String   @id @default(uuid())
+  /// 台灣時區的日期字串（例如 "2026-07-16"），全部群組共用同一題，每天一題
+  date      String   @unique
+  /// 4 位不重複數字組成的密碼，例如 "1234"
+  answer    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  attempts OneATwoBAttempt[]
+
+  @@map("one_a_two_b_puzzles")
+}
+
+model OneATwoBAttempt {
+  id         String    @id @default(uuid())
+  puzzleId   String    @map("puzzle_id")
+  groupId    String    @map("group_id")
+  memberId   String    @map("member_id")
+  /// 依序猜過的號碼，例如 ["5678", "1243"]；每一位數字的顏色回饋（A/B/沒中）是
+  /// answer+guess 的純函式運算結果，不落地儲存
+  guesses    Json      @default("[]")
+  solved     Boolean   @default(false)
+  finishedAt DateTime? @map("finished_at")
+  durationMs Int?      @map("duration_ms")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  puzzle OneATwoBPuzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  group  Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member GroupMember    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([puzzleId, memberId])
+  @@index([puzzleId, groupId])
+  @@map("one_a_two_b_attempts")
 }
