@@ -47,7 +47,7 @@ function liffGameCard(emoji: string, title: string, description: string, uri: st
     borderWidth: "1px",
     cornerRadius: "lg" as const,
     paddingAll: "6px",
-    spacing: "xxs" as const,
+    spacing: "xs" as const,
     contents: [
       {
         type: "box" as const,
