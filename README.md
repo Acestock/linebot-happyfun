@@ -87,6 +87,10 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 
 ## 每日 Wordle（LIFF 網頁小遊戲）
 
+<img src="./docs/screenshots/wordle-liff.png" alt="每日 Wordle LIFF 頁面截圖" width="320" />
+
+> 上圖是實際 `liff/index.html` + `liff/wordle.css` 產出的**真實畫面**（用假資料填了幾行猜測結果，展示格子標色跟鍵盤上色的效果），不是重繪的示意圖。
+
 跟上面的文字遊戲不一樣，這是第一個有網頁畫面的功能——在 `party` 選單點「🔤 每日 Wordle」會打開一個 LIFF 頁面（`liff/`，純 HTML/CSS/vanilla JS，沒有前端建構工具），每個人在網頁裡各自解今天的 5 字母英文單字（經典 Wordle 規則：🟩 位置對、🟨 字母對位置錯、⬜ 沒這個字母，6 次機會），解完可以用 `liff.shareTargetPicker()` 把成績分享回群組，或者任何人在群組輸入 `wordle 排行` 查看當天的排行榜（依猜測次數、再依花費時間排序）。
 
 跟遊戲引擎（`src/games/engine/`）刻意不共用：那套引擎假設「一個群組同時只有一場、Redis TTL 到就消失、輪流打字猜」，Wordle 是「每個人各自解題、狀態要跨天留著算排行榜」，架構完全不同——這是繼小聚活動主持人之後，第二個「刻意不硬塞進遊戲引擎」的平行資料模型（`WordlePuzzle` / `WordleAttempt`）。每天一題全部群組共用（懶惰建立，第一個打進來的請求生出當天題目，不用額外排程），排行榜則是各群組獨立計算。
@@ -101,6 +105,10 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 > 3. 寫 LIFF 頁面的 CSS 時，凡是會被 JS 用 `hidden` 屬性切換顯示/隱藏的元素，`display` 宣告一定要包在 `selector:not([hidden])` 裡面，不能直接寫在 `selector { display: ... }` 上——author CSS 的 `display` 宣告會蓋過 `[hidden]` 的瀏覽器預設隱藏效果，導致該元素永遠顯示、`hidden = true` 完全沒用（症狀：彈窗跳出來就再也關不掉，把整個畫面擋住）。
 
 ## 每日 1A2B（LIFF 網頁小遊戲）
+
+<img src="./docs/screenshots/one-a-two-b-liff.png" alt="每日 1A2B LIFF 頁面截圖" width="320" />
+
+> 同樣是 `liff/one-a-two-b/` 的真實畫面（假資料展示中）。
 
 架構跟每日 Wordle **完全一樣**（同一套模式再做一次）：每天一組 4 位不重複數字的密碼，全部群組共用，每個人在 LIFF 頁面裡各自用 10 次機會猜，猜完一次會標色回饋——🟩（A）數字對、位置也對；🟨（B）數字有出現、位置不對；⬜ 密碼裡沒有這個數字。跟經典 1A2B 桌遊不同的是，這裡是**逐位標色**而不是只回一個「幾A幾B」的總數，因為要對齊 Wordle 那種格子視覺化的玩法。解完可以分享成績回群組，或在群組輸入 `1a2b 排行` 查看排行榜。
 
