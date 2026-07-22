@@ -14,6 +14,10 @@ LINE 群組「氣氛組」機器人 — 主持小遊戲、炒熱聊天氣氛，A
 
 在群組輸入 `party` 打開遊戲選單（Flex 卡片），點想玩的遊戲直接開局：
 
+<img src="./docs/screenshots/party-menu-mockup.png" alt="party 選單示意圖" width="320" />
+
+> 上圖是依實際 Flex Message JSON（`buildPartyMenu()`）手工重現的**示意圖**，不是 LINE 官方截圖——方便在 README 直接預覽選單長相，實際樣式以 LINE App 裡看到的為準。
+
 | 遊戲 | 玩法 |
 |---|---|
 | 🔢 終極密碼 | 猜一個 1~100 的數字，直接輸入數字，機器人提示太大/太小，猜中即結算 |
