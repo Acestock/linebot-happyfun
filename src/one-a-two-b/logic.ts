@@ -53,38 +53,33 @@ export function isWin(feedback: DigitFeedback[]): boolean {
   return feedback.every((f) => f === "correct");
 }
 
-function hashString(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
-  }
-  return hash;
-}
-
-/** 用 seed 做確定性洗牌（同個 seed 永遠洗出同樣的順序），不用 Math.random() 才能單元測試 */
-function seededShuffle(seed: number, items: string[]): string[] {
-  let s = seed;
+function randomShuffle(items: string[]): string[] {
   const arr = [...items];
   for (let i = arr.length - 1; i > 0; i--) {
-    s = (s * 1103515245 + 12345) >>> 0;
-    const j = s % (i + 1);
+    const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
 }
 
 /**
- * 依日期挑一個當天的答案。跟 Wordle 不同的是這裡沒有「常見單字庫」可以挑，
- * 密碼是從 0-9 洗牌取前 DIGITS 位直接生成，用日期字串當 seed 確保同一天結果一致；
- * 避開最近 recentAnswers 出現過的密碼（洗牌空間夠大，通常第一次就會避開）。
+ * 每個人可以當天連續開很多題，不需要日期 determinism 了——密碼從 0-9 洗牌取前 DIGITS
+ * 位直接生成，避開最近 recentAnswers 出現過的密碼（洗牌空間夠大，通常第一次就會避開）。
  */
-export function pickDailyAnswer(date: string, recentAnswers: string[]): string {
+export function pickRoundAnswer(recentAnswers: string[]): string {
   const avoid = new Set(recentAnswers);
-  const seed = hashString(date);
 
   for (let attempt = 0; attempt < 50; attempt++) {
-    const candidate = seededShuffle(seed + attempt, DIGIT_POOL).slice(0, DIGITS).join("");
+    const candidate = randomShuffle(DIGIT_POOL).slice(0, DIGITS).join("");
     if (!avoid.has(candidate)) return candidate;
   }
-  return seededShuffle(seed, DIGIT_POOL).slice(0, DIGITS).join("");
+  return randomShuffle(DIGIT_POOL).slice(0, DIGITS).join("");
+}
+
+/**
+ * 猜越少次分數越高，最後一次猜中封底分。跟 speedBonus／comboMultiplier
+ * （src/shared/gameScoring.ts）疊加算出最終 roundScore。
+ */
+export function baseScoreForGuesses(guessesUsed: number): number {
+  return Math.max(19, 100 - (guessesUsed - 1) * 9);
 }

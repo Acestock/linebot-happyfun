@@ -309,7 +309,8 @@ interface GameEngine<TConfig, TState, TMoveInput, TResult> {
 | 2 | 終極密碼完整流程：開局／猜測／結算／名次記錄，`GameEngine` 框架 | 狀態機純函式的單元測試（給定狀態+輸入→驗證輸出）；本機模擬多輪事件的腳本測試；真實群組手動測試完整一局 |
 | 3 | AI 人設文案（取代 Phase 2 的寫死文案）＋防護＋降級 | 防護規則的單元測試（黑名單觸發案例）；手動關閉/餵錯 API key 驗證降級文案生效；真實群組人工檢視語氣是否符合人設 |
 | 4 | 主動互動排程（閒置互動＋逾時掃描）＋ Push 頻率限制 | 本機把門檻/間隔調短做手動驗證；驗證超過頻率上限時第二則 Push 會被擋下；驗證忘記回覆的遊戲會被逾時收尾 |
-| 5（stretch，後來實作為完整功能） | 每日 Wordle：LIFF 頁面＋共用 API 路由＋新的平行資料模型（`WordlePuzzle`/`WordleAttempt`，跟遊戲引擎/Meetup 一樣不共用既有 session 機制） | 純邏輯（字母回饋演算法）的單元測試；真的本機 Postgres 跑 smoke script 驗證完整一局勝/敗＋排行榜排序；LIFF 畫面本身無法自動化測試，需部署後在 LINE App 內手動驗證 |
+| 5（stretch，後來實作為完整功能） | 每日 Wordle：LIFF 頁面＋共用 API 路由＋新的平行資料模型（`WordlePuzzle`/`WordleAttempt`，跟遊戲引擎/Meetup 一樣不共用既有 session 機制）；隨後 1A2B 依同一套模式再做一份 | 純邏輯（字母回饋演算法）的單元測試；真的本機 Postgres 跑 smoke script 驗證完整一局勝/敗＋排行榜排序；LIFF 畫面本身無法自動化測試，需部署後在 LINE App 內手動驗證 |
+| 6 | Wordle／1A2B 改版：一天一題的 `WordlePuzzle`/`WordleAttempt` 換成每人可連續挑戰多題的 `WordleRound`/`WordleDailyStats`（breaking migration，直接砍掉重建，不保留舊猜測歷史）；新增計分（連擊倍率＋手速加成，公式在新的 `src/shared/gameScoring.ts`）、每題倒數計時（隨連續題數從 60 秒壓到 10 秒，超時懶惰結算為失敗）、排行榜改依當天單回合最高分排序；LIFF 前端加上倒數 bar、右下角連擊／最高分 HUD、回合結算卡、confetti | 新的 `gameScoring.ts` 純函式單元測試；`logic.ts` 的 `baseScoreForGuesses`/`pickRoundWord` 單元測試；真的本機 Postgres 跑 smoke script 驗證完整流程（開局→贏拿分→連續開下一題疊 combo→輸或超時讓 combo 歸零→排行榜排序）；LIFF UI 用 headless Chromium 載入真實 CSS/JS＋mock fetch/liff 驗證畫面渲染邏輯，即時倒數/超時判定等跟時間有關的行為需部署後在 LINE App 內手動驗證 |
 
 ---
 

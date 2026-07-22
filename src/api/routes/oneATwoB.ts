@@ -3,13 +3,13 @@ import { loadEnv } from "../../config/env";
 import { verifyLineIdToken } from "../../line/idToken";
 import { upsertGroupMemberByLineIds } from "../../db/groupRepository";
 import { prisma } from "../../db/prisma";
-import { getLeaderboard, getOrCreateAttempt, submitGuess } from "../../one-a-two-b/manager";
+import { getLeaderboard, getSessionState, startNextRound, submitGuess } from "../../one-a-two-b/manager";
 import { logger } from "../../utils/logger";
 
 /**
  * 每日 1A2B 的 REST API，給 liff/one-a-two-b/oneATwoB.js 呼叫。
- * 跟 src/api/routes/wordle.ts 是同一套設計——session/guess 兩個會動到資料的 endpoint
- * 都要求 LIFF ID token，每次請求重新驗證（見 src/line/idToken.ts，故意不做自訂
+ * 跟 src/api/routes/wordle.ts 是同一套設計——session/guess/next-round 三個會動到資料的
+ * endpoint 都要求 LIFF ID token，每次請求重新驗證（見 src/line/idToken.ts，故意不做自訂
  * session token）；leaderboard 是唯讀、不含敏感資訊，不需要驗證身分。
  */
 
@@ -55,8 +55,24 @@ export function createOneATwoBRouter(): Router {
       const resolved = await resolveMember(idToken, groupId, res);
       if (!resolved) return;
 
-      const state = await getOrCreateAttempt(resolved.group.id, resolved.member);
+      const state = await getSessionState(resolved.group.id, resolved.member);
       res.status(200).json({ ...state, displayName: resolved.member.displayName });
+    }),
+  );
+
+  router.post(
+    "/next-round",
+    asyncHandler(async (req, res) => {
+      const { idToken, groupId } = req.body ?? {};
+      const resolved = await resolveMember(idToken, groupId, res);
+      if (!resolved) return;
+
+      const result = await startNextRound(resolved.group.id, resolved.member);
+      if (!result.ok) {
+        res.status(409).json({ error: result.error });
+        return;
+      }
+      res.status(200).json(result.state);
     }),
   );
 
@@ -91,7 +107,7 @@ export function createOneATwoBRouter(): Router {
 
       const group = await prisma.group.findUnique({ where: { lineGroupId: groupId } });
       if (!group) {
-        res.status(200).json({ puzzleDate: null, solved: [], unsolvedCount: 0 });
+        res.status(200).json({ date: null, entries: [] });
         return;
       }
 

@@ -44,8 +44,10 @@ model Group {
   memories         GroupMemory[]
   gameSessions     GameSession[]
   meetups          Meetup[]
-  wordleAttempts   WordleAttempt[]
-  oneATwoBAttempts OneATwoBAttempt[]
+  wordleRounds     WordleRound[]
+  wordleDailyStats WordleDailyStats[]
+  oneATwoBRounds      OneATwoBRound[]
+  oneATwoBDailyStats  OneATwoBDailyStats[]
 
   @@map("groups")
 }
@@ -67,8 +69,10 @@ model GroupMember {
   hostedMeetups   Meetup[]          @relation("MeetupHost")
   meetupCheckins  MeetupCheckin[]
   meetupFeedbacks MeetupFeedback[]
-  wordleAttempts  WordleAttempt[]
-  oneATwoBAttempts OneATwoBAttempt[]
+  wordleRounds       WordleRound[]
+  wordleDailyStats    WordleDailyStats[]
+  oneATwoBRounds      OneATwoBRound[]
+  oneATwoBDailyStats  OneATwoBDailyStats[]
 
   @@unique([groupId, lineUserId])
   @@map("group_members")
@@ -220,77 +224,113 @@ model MeetupFeedback {
   @@map("meetup_feedback")
 }
 
-/// LIFF 每日 Wordle — 跟 game_sessions 一樣是刻意分開的平行資料模型：
-/// 每個玩家各自獨立解題（不是共用一份 Redis 狀態的輪流猜謎），且狀態要跨天保留
-/// 做排行榜，不適合套用遊戲引擎「一個群組同時只有一場、Redis TTL 到就消失」那套機制。
-model WordlePuzzle {
-  id        String   @id @default(uuid())
-  /// 台灣時區的日期字串（例如 "2026-07-16"），全部群組共用同一題，每天一題
-  date      String   @unique
-  answer    String
-  createdAt DateTime @default(now()) @map("created_at")
-
-  attempts WordleAttempt[]
-
-  @@map("wordle_puzzles")
-}
-
-model WordleAttempt {
-  id         String    @id @default(uuid())
-  puzzleId   String    @map("puzzle_id")
-  /// 跟 group_sessions/meetups 同樣的作法：groupId 直接落欄位，排行榜查詢不用多 join
-  groupId    String    @map("group_id")
-  memberId   String    @map("member_id")
+/// LIFF 每日 Wordle — 跟 game_sessions 一樣是刻意分開的平行資料模型：每個玩家各自
+/// 獨立解題，不適合套用遊戲引擎「一個群組同時只有一場、Redis TTL 到就消失」那套機制。
+///
+/// v2（連續挑戰＋計分）：題目不再是「全群組共用同一天同一題」，而是每個人自己的一連串
+/// 回合（WordleRound）——解完一題可以馬上開下一題，連續答對（combo）疊加分數倍率，
+/// 但每題的作答時限會隨連續題數縮短。WordleDailyStats 是每人每天的彙總，排行榜直接
+/// 讀這張表的 bestScore，不用每次掃全部 WordleRound。
+model WordleRound {
+  id               String    @id @default(uuid())
+  groupId          String    @map("group_id")
+  memberId         String    @map("member_id")
+  /// 台灣時區日期字串（例如 "2026-07-16"），這回合屬於哪一天的挑戰賽
+  date             String
+  /// 當天第幾題（單調遞增，含失敗/超時的題），用來排序歷史紀錄
+  roundIndex       Int       @map("round_index")
+  /// 進入本回合時，是這次連續挑戰（combo 不中斷）的第幾題；決定 timeLimitSeconds
+  streakPosition   Int       @map("streak_position")
+  answer           String
   /// 依序猜過的單字，例如 ["CRANE", "SLATE"]；每個字母的顏色回饋是 answer+guess 的
   /// 純函式運算結果，不落地儲存，避免重複維護衍生資料
-  guesses    Json      @default("[]")
-  solved     Boolean   @default(false)
-  finishedAt DateTime? @map("finished_at")
-  durationMs Int?      @map("duration_ms")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  guesses          Json      @default("[]")
+  solved           Boolean   @default(false)
+  timedOut         Boolean   @default(false) @map("timed_out")
+  timeLimitSeconds Int       @map("time_limit_seconds")
+  /// 下一次猜測的伺服器端截止時間；回合結束（贏/輸/超時）後為 null
+  guessDeadlineAt  DateTime? @map("guess_deadline_at")
+  score            Int       @default(0)
+  startedAt        DateTime  @default(now()) @map("started_at")
+  finishedAt       DateTime? @map("finished_at")
+  durationMs       Int?      @map("duration_ms")
 
-  puzzle WordlePuzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
-  group  Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  member GroupMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  group  Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  @@unique([puzzleId, memberId])
-  @@index([puzzleId, groupId])
-  @@map("wordle_attempts")
+  @@unique([groupId, memberId, date, roundIndex])
+  @@index([groupId, date])
+  @@map("wordle_rounds")
 }
 
-/// LIFF 每日 1A2B（猜數字密碼）— 跟 WordlePuzzle/WordleAttempt 完全同樣的形狀與理由：
-/// 每個玩家各自獨立解題、狀態要跨天留著算排行榜，是自己一套平行資料模型。
-model OneATwoBPuzzle {
-  id        String   @id @default(uuid())
-  /// 台灣時區的日期字串（例如 "2026-07-16"），全部群組共用同一題，每天一題
-  date      String   @unique
+model WordleDailyStats {
+  id           String   @id @default(uuid())
+  groupId      String   @map("group_id")
+  memberId     String   @map("member_id")
+  date         String
+  roundsPlayed Int      @default(0) @map("rounds_played")
+  roundsSolved Int      @default(0) @map("rounds_solved")
+  /// 排行榜排序依據：當天單回合最高分（不是累計總分）
+  bestScore    Int      @default(0) @map("best_score")
+  currentCombo Int      @default(0) @map("current_combo")
+  bestCombo    Int      @default(0) @map("best_combo")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  group  Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memberId, date])
+  @@index([groupId, date])
+  @@map("wordle_daily_stats")
+}
+
+/// LIFF 每日 1A2B（猜數字密碼）— 跟 WordleRound/WordleDailyStats 完全同樣的形狀與理由，
+/// 兩邊刻意保持獨立（src/wordle 跟 src/one-a-two-b 互不 import），規則要各自調整不互相影響。
+model OneATwoBRound {
+  id               String    @id @default(uuid())
+  groupId          String    @map("group_id")
+  memberId         String    @map("member_id")
+  date             String
+  roundIndex       Int       @map("round_index")
+  streakPosition   Int       @map("streak_position")
   /// 4 位不重複數字組成的密碼，例如 "1234"
-  answer    String
-  createdAt DateTime @default(now()) @map("created_at")
-
-  attempts OneATwoBAttempt[]
-
-  @@map("one_a_two_b_puzzles")
-}
-
-model OneATwoBAttempt {
-  id         String    @id @default(uuid())
-  puzzleId   String    @map("puzzle_id")
-  groupId    String    @map("group_id")
-  memberId   String    @map("member_id")
+  answer           String
   /// 依序猜過的號碼，例如 ["5678", "1243"]；每一位數字的顏色回饋（A/B/沒中）是
   /// answer+guess 的純函式運算結果，不落地儲存
-  guesses    Json      @default("[]")
-  solved     Boolean   @default(false)
-  finishedAt DateTime? @map("finished_at")
-  durationMs Int?      @map("duration_ms")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  guesses          Json      @default("[]")
+  solved           Boolean   @default(false)
+  timedOut         Boolean   @default(false) @map("timed_out")
+  timeLimitSeconds Int       @map("time_limit_seconds")
+  guessDeadlineAt  DateTime? @map("guess_deadline_at")
+  score            Int       @default(0)
+  startedAt        DateTime  @default(now()) @map("started_at")
+  finishedAt       DateTime? @map("finished_at")
+  durationMs       Int?      @map("duration_ms")
 
-  puzzle OneATwoBPuzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
-  group  Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  member GroupMember    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  group  Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  @@unique([puzzleId, memberId])
-  @@index([puzzleId, groupId])
-  @@map("one_a_two_b_attempts")
+  @@unique([groupId, memberId, date, roundIndex])
+  @@index([groupId, date])
+  @@map("one_a_two_b_rounds")
+}
+
+model OneATwoBDailyStats {
+  id           String   @id @default(uuid())
+  groupId      String   @map("group_id")
+  memberId     String   @map("member_id")
+  date         String
+  roundsPlayed Int      @default(0) @map("rounds_played")
+  roundsSolved Int      @default(0) @map("rounds_solved")
+  bestScore    Int      @default(0) @map("best_score")
+  currentCombo Int      @default(0) @map("current_combo")
+  bestCombo    Int      @default(0) @map("best_combo")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  group  Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memberId, date])
+  @@index([groupId, date])
+  @@map("one_a_two_b_daily_stats")
 }

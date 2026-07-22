@@ -110,17 +110,21 @@ export function isWin(feedback: LetterFeedback[]): boolean {
 }
 
 /**
- * 依日期挑一個當天的答案，避開最近 avoidRecentDays 天內出過的題目（題庫不夠大時，
- * 用不完的話就允許重複，不會卡住）。用日期字串當亂數種子，同一天呼叫多次結果一致。
+ * 每個人可以當天連續開很多題，題目不再是「全群組共用同一天同一題」，所以不需要日期
+ * determinism 了——單純隨機挑一個，避開這個人最近玩過的幾題（題庫不夠大、用不完的話
+ * 就允許重複，不會卡住）。
  */
-export function pickDailyWord(date: string, recentAnswers: string[]): string {
+export function pickRoundWord(recentAnswers: string[]): string {
   const avoidSet = new Set(recentAnswers.map((w) => w.toUpperCase()));
   const candidates = WORD_LIST.filter((w) => !avoidSet.has(w));
   const pool = candidates.length > 0 ? candidates : WORD_LIST;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
-  let hash = 0;
-  for (let i = 0; i < date.length; i++) {
-    hash = (hash * 31 + date.charCodeAt(i)) >>> 0;
-  }
-  return pool[hash % pool.length];
+/**
+ * 猜越少次分數越高，最後一次猜中封底分（不會是 0，至少有基礎鼓勵分）。跟 speedBonus／
+ * comboMultiplier（src/shared/gameScoring.ts）疊加算出最終 roundScore。
+ */
+export function baseScoreForGuesses(guessesUsed: number): number {
+  return Math.max(25, 100 - (guessesUsed - 1) * 15);
 }

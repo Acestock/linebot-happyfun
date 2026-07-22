@@ -89,11 +89,13 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 
 <img src="./docs/screenshots/wordle-liff.png" alt="每日 Wordle LIFF 頁面截圖" width="320" />
 
-> 上圖是實際 `liff/index.html` + `liff/wordle.css` 產出的**真實畫面**（用假資料填了幾行猜測結果，展示格子標色跟鍵盤上色的效果），不是重繪的示意圖。
+> 上圖是實際 `liff/index.html` + `liff/wordle.css` 產出的**真實畫面**（用假資料展示連續挑戰中的狀態：倒數計時 bar、格子標色、鍵盤上色、右下角的連擊／最高分 HUD），不是重繪的示意圖。HUD 平常是 `position: fixed` 貼在畫面右下角，這裡截圖時改成不定位、往下排版，純粹是版面問題，跟真正的定位方式無關。
 
-跟上面的文字遊戲不一樣，這是第一個有網頁畫面的功能——在 `party` 選單點「🔤 每日 Wordle」會打開一個 LIFF 頁面（`liff/`，純 HTML/CSS/vanilla JS，沒有前端建構工具），每個人在網頁裡各自解今天的 5 字母英文單字（經典 Wordle 規則：🟩 位置對、🟨 字母對位置錯、⬜ 沒這個字母，6 次機會），解完可以用 `liff.shareTargetPicker()` 把成績分享回群組，或者任何人在群組輸入 `wordle 排行` 查看當天的排行榜（依猜測次數、再依花費時間排序）。
+跟上面的文字遊戲不一樣，這是第一個有網頁畫面的功能——在 `party` 選單點「🔤 每日 Wordle」會打開一個 LIFF 頁面（`liff/`，純 HTML/CSS/vanilla JS，沒有前端建構工具），每個人在網頁裡解今天的 5 字母英文單字（經典 Wordle 規則：🟩 位置對、🟨 字母對位置錯、⬜ 沒這個字母，6 次機會）。
 
-跟遊戲引擎（`src/games/engine/`）刻意不共用：那套引擎假設「一個群組同時只有一場、Redis TTL 到就消失、輪流打字猜」，Wordle 是「每個人各自解題、狀態要跨天留著算排行榜」，架構完全不同——這是繼小聚活動主持人之後，第二個「刻意不硬塞進遊戲引擎」的平行資料模型（`WordlePuzzle` / `WordleAttempt`）。每天一題全部群組共用（懶惰建立，第一個打進來的請求生出當天題目，不用額外排程），排行榜則是各群組獨立計算。
+**連續挑戰＋計分**：跟原版 Wordle「一天一題」不同，這裡解開一題可以馬上開下一題（同一天內連續挑戰），連續答對的題數（連擊）會疊加分數倍率，但每題的作答時限也會跟著縮短——第 1 題 60 秒、線性遞減到第 10 題（含以後）固定 10 秒，時間到直接判本回合失敗、連擊歸零。每回合分數 = `(猜越少次的基礎分 + 手速加成) × 連擊倍率`，公式在 `src/shared/gameScoring.ts`（純函式、跟 1A2B 共用，各自的「猜越少次分越高」基礎分公式留在各自的 `logic.ts`）。解完可以用 `liff.shareTargetPicker()` 把成績分享回群組，或者任何人在群組輸入 `wordle 排行` 查看當天排行榜——排序依據是**當天單回合最高分**（不是累計總分），並列出最佳連擊、解出/挑戰題數。
+
+跟遊戲引擎（`src/games/engine/`）刻意不共用：那套引擎假設「一個群組同時只有一場、Redis TTL 到就消失、輪流打字猜」，Wordle 是「每個人各自解題、狀態要跨天留著算排行榜」，架構完全不同——這是繼小聚活動主持人之後，第二個「刻意不硬塞進遊戲引擎」的平行資料模型（`WordleRound` / `WordleDailyStats`）。題目不再是「全群組共用同一天同一題」，而是每個人自己的一連串回合，懶惰結算（頁面載入或送出猜測時，如果偵測到上一題其實已經超時卻沒人送出，會先把它判定掉）取代了原本的排程需求。
 
 身分驗證用 LIFF 的 ID Token（`liff.getIDToken()`），後端直接呼叫 LINE 官方 `/oauth2/v2.1/verify` 驗證（`src/line/idToken.ts`），不用自己處理 JWT 簽章、也不用另外簽發 session token——換一點點延遲，省掉一整類自製加解密邏輯。
 
@@ -108,11 +110,11 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 
 <img src="./docs/screenshots/one-a-two-b-liff.png" alt="每日 1A2B LIFF 頁面截圖" width="320" />
 
-> 同樣是 `liff/one-a-two-b/` 的真實畫面（假資料展示中）。
+> 同樣是 `liff/one-a-two-b/` 的真實畫面（假資料展示連續挑戰中的狀態）。
 
-架構跟每日 Wordle **完全一樣**（同一套模式再做一次）：每天一組 4 位不重複數字的密碼，全部群組共用，每個人在 LIFF 頁面裡各自用 10 次機會猜，猜完一次會標色回饋——🟩（A）數字對、位置也對；🟨（B）數字有出現、位置不對；⬜ 密碼裡沒有這個數字。跟經典 1A2B 桌遊不同的是，這裡是**逐位標色**而不是只回一個「幾A幾B」的總數，因為要對齊 Wordle 那種格子視覺化的玩法。解完可以分享成績回群組，或在群組輸入 `1a2b 排行` 查看排行榜。
+架構跟每日 Wordle **完全一樣**（同一套模式再做一次，包含連續挑戰、倒數計時、計分、排行榜）：每個人在 LIFF 頁面裡用 10 次機會猜一組 4 位不重複數字的密碼，猜完一次會標色回饋——🟩（A）數字對、位置也對；🟨（B）數字有出現、位置不對；⬜ 密碼裡沒有這個數字。跟經典 1A2B 桌遊不同的是，這裡是**逐位標色**而不是只回一個「幾A幾B」的總數，因為要對齊 Wordle 那種格子視覺化的玩法。解開一題可以馬上挑戰下一題，連擊、計時、分數規則跟 Wordle 完全一致（時限一樣從 60 秒壓到 10 秒），解完可以分享成績回群組，或在群組輸入 `1a2b 排行` 查看當天排行榜（一樣依單回合最高分排序）。
 
-資料模型（`OneATwoBPuzzle` / `OneATwoBAttempt`）、`src/one-a-two-b/logic.ts`（含跟 Wordle 同一套雙輪演算法算出每一位數字的回饋，避免猜測數字重複時誤判）、`manager.ts`、`messages.ts`、REST API（`/api/one-a-two-b/*`）都是照著 Wordle 那一套原封不動再做一份，兩邊刻意保持獨立（`src/wordle/` 跟 `src/one-a-two-b/` 互不 import），之後要各自調整規則不會互相影響。
+資料模型（`OneATwoBRound` / `OneATwoBDailyStats`）、`src/one-a-two-b/logic.ts`（含跟 Wordle 同一套雙輪演算法算出每一位數字的回饋，避免猜測數字重複時誤判）、`manager.ts`、`messages.ts`、REST API（`/api/one-a-two-b/*`）都是照著 Wordle 那一套原封不動再做一份，兩邊刻意保持獨立（`src/wordle/` 跟 `src/one-a-two-b/` 互不 import，只共用 `src/shared/gameScoring.ts` 這個純數學公式），之後要各自調整規則不會互相影響。
 
 **LIFF app 設定要多做一步，但不用整套重來**：一個 LIFF app 只能對應一個固定網址，Wordle 跟 1A2B 沒辦法共用同一個 LIFF app，但兩者可以掛在**同一個** LINE Login channel 底下（該 channel 的 LIFF 分頁可以「Add」加開好幾個 LIFF app）。所以只需要：進到申請 Wordle 時建立的那個 LINE Login channel，在 LIFF 分頁再新增一個 LIFF app（Endpoint URL 填 `https://<你的網域>/liff/one-a-two-b/`，Scope 一樣勾 `openid`），把拿到的 LIFF ID 填進 `LIFF_ID_ONE_A_TWO_B`；`LIFF_CHANNEL_ID` 不用重填，兩個遊戲共用同一個值。完整步驟見 `.env.example` 裡的註解。
 

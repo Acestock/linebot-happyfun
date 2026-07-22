@@ -1,12 +1,25 @@
-import type { OneATwoBAttempt, OneATwoBPuzzle } from "@prisma/client";
+import type { OneATwoBDailyStats, OneATwoBRound } from "@prisma/client";
 import { prisma } from "../db/prisma";
-import { computeFeedback, isValidGuess, isWin, MAX_GUESSES, pickDailyAnswer, type DigitFeedback } from "./logic";
+import {
+  baseScoreForGuesses,
+  computeFeedback,
+  isValidGuess,
+  isWin,
+  MAX_GUESSES,
+  pickRoundAnswer,
+  type DigitFeedback,
+} from "./logic";
+import { comboMultiplier, roundScore, speedBonus, timeLimitForStreak } from "../shared/gameScoring";
 
 /**
  * DB orchestration 層，跟 src/wordle/manager.ts 是同一套設計、刻意各自獨立不共用
  * （meetup/games/wordle/one-a-two-b 這幾個 feature 之間都不互相依賴）。
- * 純邏輯在 logic.ts，這裡只負責撈資料、組資料、寫資料；不直接單元測試，
- * 用真的本機 Postgres 跑 smoke script 驗證。
+ * 純邏輯在 logic.ts（跟共用的 src/shared/gameScoring.ts），這裡只負責撈資料、組資料、
+ * 寫資料；不直接單元測試，用真的本機 Postgres 跑 smoke script 驗證。
+ *
+ * v2（連續挑戰＋計分）：跟 Wordle 同一套改法——題目不再是「全群組共用同一天同一題」，
+ * 每個人自己一連串回合（OneATwoBRound），解完馬上開下一題累積 combo，作答時限隨連續
+ * 題數縮短，超時直接判失敗、combo 歸零。OneATwoBDailyStats 是每人每天的彙總。
  */
 
 export interface MemberIdentity {
@@ -14,7 +27,7 @@ export interface MemberIdentity {
   displayName: string | null;
 }
 
-const RECENT_PUZZLES_TO_AVOID = 30;
+const RECENT_ANSWERS_TO_AVOID = 30;
 
 /** 台灣（UTC+8）當天日期字串，例如 "2026-07-16" */
 export function taipeiDateString(d: Date = new Date()): string {
@@ -22,64 +35,173 @@ export function taipeiDateString(d: Date = new Date()): string {
   return shifted.toISOString().slice(0, 10);
 }
 
-/** 每天一題、全部群組共用；懶惰建立（不用排程），第一個打進來的請求順便把當天題目生出來 */
-export async function getOrCreateTodaysPuzzle(): Promise<OneATwoBPuzzle> {
-  const date = taipeiDateString();
-  const existing = await prisma.oneATwoBPuzzle.findUnique({ where: { date } });
-  if (existing) return existing;
-
-  const recent = await prisma.oneATwoBPuzzle.findMany({
-    orderBy: { date: "desc" },
-    take: RECENT_PUZZLES_TO_AVOID,
-    select: { answer: true },
-  });
-  const answer = pickDailyAnswer(date, recent.map((r) => r.answer));
-
-  // upsert 而非單純 create：同一秒兩個請求同時撞見「今天還沒有題目」時，靠資料庫
-  // 層級的 ON CONFLICT 保證只會真的建立一筆，不會炸出 unique constraint 錯誤
-  return prisma.oneATwoBPuzzle.upsert({ where: { date }, create: { date, answer }, update: {} });
-}
-
 export interface GuessRow {
   guess: string;
   feedback: DigitFeedback[];
 }
 
-export interface AttemptState {
-  puzzleDate: string;
-  rows: GuessRow[];
-  solved: boolean;
-  guessesRemaining: number;
+export interface ScoreBreakdown {
+  base: number;
+  speedBonus: number;
+  multiplier: number;
 }
 
-function toAttemptState(puzzle: OneATwoBPuzzle, attempt: OneATwoBAttempt): AttemptState {
-  const guesses = Array.isArray(attempt.guesses) ? (attempt.guesses as string[]) : [];
+export interface RoundView {
+  roundIndex: number;
+  streakPosition: number;
+  timeLimitSeconds: number;
+  /** ISO 字串；回合已結束時為 null。前端倒數只是視覺，真正判定一律以後端為準 */
+  guessDeadlineAt: string | null;
+  rows: GuessRow[];
+  guessesRemaining: number;
+  solved: boolean;
+  timedOut: boolean;
+  finished: boolean;
+  score: number;
+  /** 只有「剛解開的那次回應」才有值——結算卡用來顯示「基礎 N + 手速加成 N，x 連擊倍率」 */
+  scoreBreakdown: ScoreBreakdown | null;
+}
+
+export interface DailyStatsView {
+  date: string;
+  roundsPlayed: number;
+  roundsSolved: number;
+  bestScore: number;
+  currentCombo: number;
+  bestCombo: number;
+}
+
+export interface SessionState {
+  /** null 代表今天還沒開始第一題，前端要顯示「開始挑戰」按鈕呼叫 startNextRound */
+  round: RoundView | null;
+  dailyStats: DailyStatsView;
+}
+
+function toDailyStatsView(stats: OneATwoBDailyStats): DailyStatsView {
   return {
-    puzzleDate: puzzle.date,
-    rows: guesses.map((guess) => ({ guess, feedback: computeFeedback(puzzle.answer, guess) })),
-    solved: attempt.solved,
-    guessesRemaining: Math.max(0, MAX_GUESSES - guesses.length),
+    date: stats.date,
+    roundsPlayed: stats.roundsPlayed,
+    roundsSolved: stats.roundsSolved,
+    bestScore: stats.bestScore,
+    currentCombo: stats.currentCombo,
+    bestCombo: stats.bestCombo,
   };
 }
 
-async function getOrCreateAttemptRow(puzzleId: string, groupId: string, memberId: string): Promise<OneATwoBAttempt> {
-  return prisma.oneATwoBAttempt.upsert({
-    where: { puzzleId_memberId: { puzzleId, memberId } },
-    create: { puzzleId, groupId, memberId },
+function toRoundView(round: OneATwoBRound, scoreBreakdown: ScoreBreakdown | null = null): RoundView {
+  const guesses = Array.isArray(round.guesses) ? (round.guesses as string[]) : [];
+  return {
+    roundIndex: round.roundIndex,
+    streakPosition: round.streakPosition,
+    timeLimitSeconds: round.timeLimitSeconds,
+    guessDeadlineAt: round.guessDeadlineAt ? round.guessDeadlineAt.toISOString() : null,
+    rows: guesses.map((guess) => ({ guess, feedback: computeFeedback(round.answer, guess) })),
+    guessesRemaining: Math.max(0, MAX_GUESSES - guesses.length),
+    solved: round.solved,
+    timedOut: round.timedOut,
+    finished: round.finishedAt !== null,
+    score: round.score,
+    scoreBreakdown,
+  };
+}
+
+async function getOrCreateDailyStats(groupId: string, memberId: string, date: string): Promise<OneATwoBDailyStats> {
+  return prisma.oneATwoBDailyStats.upsert({
+    where: { groupId_memberId_date: { groupId, memberId, date } },
+    create: { groupId, memberId, date },
     update: {},
   });
 }
 
-/** LIFF 頁面載入時呼叫，取得（或建立）這個人今天的挑戰狀態，讓關掉重開可以接續 */
-export async function getOrCreateAttempt(groupId: string, member: MemberIdentity): Promise<AttemptState> {
-  const puzzle = await getOrCreateTodaysPuzzle();
-  const attempt = await getOrCreateAttemptRow(puzzle.id, groupId, member.id);
-  return toAttemptState(puzzle, attempt);
+/** 找今天最後一筆回合；如果它其實已經超時（過了 deadline 卻沒送出），懶惰結算掉再回傳。 */
+async function getLatestRoundSettled(groupId: string, memberId: string, date: string): Promise<OneATwoBRound | null> {
+  const latest = await prisma.oneATwoBRound.findFirst({
+    where: { groupId, memberId, date },
+    orderBy: { roundIndex: "desc" },
+  });
+  if (!latest) return null;
+  if (latest.finishedAt !== null) return latest;
+  if (!latest.guessDeadlineAt || latest.guessDeadlineAt.getTime() > Date.now()) return latest;
+
+  // 過了 deadline 還沒送出下一次猜測 → 判超時，本回合失敗、combo 歸零
+  const [updatedRound] = await prisma.$transaction([
+    prisma.oneATwoBRound.update({
+      where: { id: latest.id },
+      data: {
+        timedOut: true,
+        finishedAt: new Date(),
+        durationMs: Date.now() - latest.startedAt.getTime(),
+        score: 0,
+        guessDeadlineAt: null,
+      },
+    }),
+    prisma.oneATwoBDailyStats.update({
+      where: { groupId_memberId_date: { groupId, memberId, date } },
+      data: { currentCombo: 0 },
+    }),
+  ]);
+  return updatedRound;
+}
+
+/** LIFF 頁面載入時呼叫：today 的彙總 + 目前（或剛結束）的回合狀態，不會自動開新題。 */
+export async function getSessionState(groupId: string, member: MemberIdentity): Promise<SessionState> {
+  const date = taipeiDateString();
+  const dailyStats = await getOrCreateDailyStats(groupId, member.id, date);
+  const round = await getLatestRoundSettled(groupId, member.id, date);
+  return {
+    round: round ? toRoundView(round) : null,
+    dailyStats: toDailyStatsView(dailyStats),
+  };
+}
+
+export type StartNextRoundResult = { ok: true; state: SessionState } | { ok: false; error: "round_in_progress" };
+
+/** 前端按「下一題」／「重新開始」時呼叫；上一題（如果有）一定要先結束才能開新的。 */
+export async function startNextRound(groupId: string, member: MemberIdentity): Promise<StartNextRoundResult> {
+  const date = taipeiDateString();
+  const dailyStats = await getOrCreateDailyStats(groupId, member.id, date);
+  const existing = await getLatestRoundSettled(groupId, member.id, date);
+  if (existing && existing.finishedAt === null) {
+    return { ok: false, error: "round_in_progress" };
+  }
+
+  const recent = await prisma.oneATwoBRound.findMany({
+    where: { groupId, memberId: member.id },
+    orderBy: { startedAt: "desc" },
+    take: RECENT_ANSWERS_TO_AVOID,
+    select: { answer: true },
+  });
+  const answer = pickRoundAnswer(recent.map((r) => r.answer));
+
+  const streakPosition = dailyStats.currentCombo + 1;
+  const timeLimitSeconds = timeLimitForStreak(streakPosition);
+  const roundIndex = dailyStats.roundsPlayed + 1;
+
+  const [round, refreshedStats] = await prisma.$transaction([
+    prisma.oneATwoBRound.create({
+      data: {
+        groupId,
+        memberId: member.id,
+        date,
+        roundIndex,
+        streakPosition,
+        answer,
+        timeLimitSeconds,
+        guessDeadlineAt: new Date(Date.now() + timeLimitSeconds * 1000),
+      },
+    }),
+    prisma.oneATwoBDailyStats.update({
+      where: { groupId_memberId_date: { groupId, memberId: member.id, date } },
+      data: { roundsPlayed: roundIndex },
+    }),
+  ]);
+
+  return { ok: true, state: { round: toRoundView(round), dailyStats: toDailyStatsView(refreshedStats) } };
 }
 
 export type SubmitGuessResult =
-  | { ok: true; state: AttemptState }
-  | { ok: false; error: "invalid_guess" | "already_finished" };
+  | { ok: true; state: SessionState }
+  | { ok: false; error: "invalid_guess" | "already_finished" | "no_active_round" };
 
 export async function submitGuess(
   groupId: string,
@@ -87,72 +209,115 @@ export async function submitGuess(
   rawGuess: string,
 ): Promise<SubmitGuessResult> {
   const guess = rawGuess.trim();
-  const puzzle = await getOrCreateTodaysPuzzle();
-  const attempt = await getOrCreateAttemptRow(puzzle.id, groupId, member.id);
-
-  const guesses = Array.isArray(attempt.guesses) ? (attempt.guesses as string[]) : [];
-  if (attempt.solved || guesses.length >= MAX_GUESSES) {
+  const date = taipeiDateString();
+  const round = await getLatestRoundSettled(groupId, member.id, date);
+  if (!round) {
+    return { ok: false, error: "no_active_round" };
+  }
+  if (round.finishedAt !== null) {
     return { ok: false, error: "already_finished" };
   }
   if (!isValidGuess(guess)) {
     return { ok: false, error: "invalid_guess" };
   }
 
+  const guesses = Array.isArray(round.guesses) ? (round.guesses as string[]) : [];
   const nextGuesses = [...guesses, guess];
-  const feedback = computeFeedback(puzzle.answer, guess);
+  const feedback = computeFeedback(round.answer, guess);
   const won = isWin(feedback);
   const exhausted = !won && nextGuesses.length >= MAX_GUESSES;
   const isFinished = won || exhausted;
 
-  const updated = await prisma.oneATwoBAttempt.update({
-    where: { id: attempt.id },
-    data: {
-      guesses: nextGuesses,
-      ...(isFinished
-        ? { solved: won, finishedAt: new Date(), durationMs: Date.now() - attempt.createdAt.getTime() }
-        : {}),
-    },
-  });
+  const dailyStats = await getOrCreateDailyStats(groupId, member.id, date);
 
-  return { ok: true, state: toAttemptState(puzzle, updated) };
+  if (!isFinished) {
+    // 還沒分勝負：只更新猜測紀錄，這一題的秒數不變，但這次猜測重新給滿倒數
+    const updated = await prisma.oneATwoBRound.update({
+      where: { id: round.id },
+      data: {
+        guesses: nextGuesses,
+        guessDeadlineAt: new Date(Date.now() + round.timeLimitSeconds * 1000),
+      },
+    });
+    return { ok: true, state: { round: toRoundView(updated), dailyStats: toDailyStatsView(dailyStats) } };
+  }
+
+  const remainingMs = round.guessDeadlineAt ? round.guessDeadlineAt.getTime() - Date.now() : 0;
+  const timeLimitMs = round.timeLimitSeconds * 1000;
+  const base = baseScoreForGuesses(nextGuesses.length);
+  const score = won ? roundScore(base, remainingMs, timeLimitMs, dailyStats.currentCombo) : 0;
+  const breakdown: ScoreBreakdown | null = won
+    ? {
+        base,
+        speedBonus: speedBonus(remainingMs, timeLimitMs),
+        multiplier: comboMultiplier(dailyStats.currentCombo),
+      }
+    : null;
+  const nextCombo = won ? dailyStats.currentCombo + 1 : 0;
+
+  const [updatedRound, updatedStats] = await prisma.$transaction([
+    prisma.oneATwoBRound.update({
+      where: { id: round.id },
+      data: {
+        guesses: nextGuesses,
+        solved: won,
+        finishedAt: new Date(),
+        durationMs: Date.now() - round.startedAt.getTime(),
+        score,
+        guessDeadlineAt: null,
+      },
+    }),
+    prisma.oneATwoBDailyStats.update({
+      where: { groupId_memberId_date: { groupId, memberId: member.id, date } },
+      data: won
+        ? {
+            roundsSolved: { increment: 1 },
+            bestScore: Math.max(dailyStats.bestScore, score),
+            currentCombo: nextCombo,
+            bestCombo: Math.max(dailyStats.bestCombo, nextCombo),
+          }
+        : { currentCombo: 0 },
+    }),
+  ]);
+
+  return {
+    ok: true,
+    state: { round: toRoundView(updatedRound, breakdown), dailyStats: toDailyStatsView(updatedStats) },
+  };
 }
 
 export interface LeaderboardEntry {
   memberId: string;
   displayName: string;
-  guessCount: number;
-  durationMs: number | null;
+  bestScore: number;
+  bestCombo: number;
+  roundsSolved: number;
+  roundsPlayed: number;
 }
 
 export interface Leaderboard {
-  /** null 代表這個群組今天完全沒人碰過 1A2B（連題目都還沒被生出來） */
-  puzzleDate: string | null;
-  solved: LeaderboardEntry[];
-  unsolvedCount: number;
+  date: string;
+  entries: LeaderboardEntry[];
 }
 
-/** 群組內今天的排行榜：過關的依猜測次數、再依花費時間排序；未過關的（含還在玩的）只算人數，不排名 */
+/** 群組內今天的排行榜：依當天單回合最高分排序（不是累計總分），再依最佳連擊、解出題數。 */
 export async function getLeaderboard(groupId: string): Promise<Leaderboard> {
-  const puzzle = await getOrCreateTodaysPuzzle();
-  const attempts = await prisma.oneATwoBAttempt.findMany({
-    where: { puzzleId: puzzle.id, groupId },
+  const date = taipeiDateString();
+  const stats = await prisma.oneATwoBDailyStats.findMany({
+    where: { groupId, date, roundsPlayed: { gt: 0 } },
     include: { member: true },
+    orderBy: [{ bestScore: "desc" }, { bestCombo: "desc" }, { roundsSolved: "desc" }],
   });
 
-  const solved = attempts
-    .filter((a) => a.solved)
-    .map((a) => ({
-      memberId: a.memberId,
-      displayName: a.member.displayName ?? "神秘玩家",
-      guessCount: Array.isArray(a.guesses) ? (a.guesses as string[]).length : 0,
-      durationMs: a.durationMs,
-    }))
-    .sort((a, b) => {
-      if (a.guessCount !== b.guessCount) return a.guessCount - b.guessCount;
-      return (a.durationMs ?? Infinity) - (b.durationMs ?? Infinity);
-    });
-
-  const unsolvedCount = attempts.filter((a) => !a.solved).length;
-
-  return { puzzleDate: puzzle.date, solved, unsolvedCount };
+  return {
+    date,
+    entries: stats.map((s) => ({
+      memberId: s.memberId,
+      displayName: s.member.displayName ?? "神秘玩家",
+      bestScore: s.bestScore,
+      bestCombo: s.bestCombo,
+      roundsSolved: s.roundsSolved,
+      roundsPlayed: s.roundsPlayed,
+    })),
+  };
 }

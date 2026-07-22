@@ -3,14 +3,14 @@ import { loadEnv } from "../../config/env";
 import { verifyLineIdToken } from "../../line/idToken";
 import { upsertGroupMemberByLineIds } from "../../db/groupRepository";
 import { prisma } from "../../db/prisma";
-import { getLeaderboard, getOrCreateAttempt, submitGuess } from "../../wordle/manager";
+import { getLeaderboard, getSessionState, startNextRound, submitGuess } from "../../wordle/manager";
 import { logger } from "../../utils/logger";
 
 /**
  * 每日 Wordle 的 REST API，給 liff/wordle.js 呼叫。
- * session/guess 兩個會動到資料的 endpoint 都要求 LIFF ID token，每次請求重新驗證
- * （見 src/line/idToken.ts 的說明：故意不做自訂 session token，換一點延遲省掉一整類簽章邏輯）。
- * leaderboard 是唯讀、不含敏感資訊，不需要驗證身分。
+ * session/guess/next-round 三個會動到資料的 endpoint 都要求 LIFF ID token，每次請求
+ * 重新驗證（見 src/line/idToken.ts 的說明：故意不做自訂 session token，換一點延遲省掉
+ * 一整類簽章邏輯）。leaderboard 是唯讀、不含敏感資訊，不需要驗證身分。
  */
 
 // Express 4 對 async route handler 裡的 rejection 不會自動轉給錯誤處理中介層，手動包一層。
@@ -56,8 +56,24 @@ export function createWordleRouter(): Router {
       const resolved = await resolveMember(idToken, groupId, res);
       if (!resolved) return;
 
-      const state = await getOrCreateAttempt(resolved.group.id, resolved.member);
+      const state = await getSessionState(resolved.group.id, resolved.member);
       res.status(200).json({ ...state, displayName: resolved.member.displayName });
+    }),
+  );
+
+  router.post(
+    "/next-round",
+    asyncHandler(async (req, res) => {
+      const { idToken, groupId } = req.body ?? {};
+      const resolved = await resolveMember(idToken, groupId, res);
+      if (!resolved) return;
+
+      const result = await startNextRound(resolved.group.id, resolved.member);
+      if (!result.ok) {
+        res.status(409).json({ error: result.error });
+        return;
+      }
+      res.status(200).json(result.state);
     }),
   );
 
@@ -92,7 +108,7 @@ export function createWordleRouter(): Router {
 
       const group = await prisma.group.findUnique({ where: { lineGroupId: groupId } });
       if (!group) {
-        res.status(200).json({ puzzleDate: null, solved: [], unsolvedCount: 0 });
+        res.status(200).json({ date: null, entries: [] });
         return;
       }
 

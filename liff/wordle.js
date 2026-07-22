@@ -4,18 +4,31 @@
 const WORD_LENGTH = 5;
 const MAX_GUESSES = 6;
 const KEYBOARD_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+const CONFETTI_EMOJI = ["🎉", "✨", "🟩", "🎊", "⭐"];
 
 const el = {
   subtitle: document.getElementById("subtitle"),
   message: document.getElementById("message"),
+  startScreen: document.getElementById("start-screen"),
+  startText: document.getElementById("start-text"),
+  startButton: document.getElementById("start-button"),
+  timerBar: document.getElementById("timer-bar"),
+  timerFill: document.getElementById("timer-fill"),
+  timerLabel: document.getElementById("timer-label"),
   grid: document.getElementById("grid"),
   keyboard: document.getElementById("keyboard"),
-  finish: document.getElementById("finish"),
-  finishText: document.getElementById("finish-text"),
+  roundResult: document.getElementById("round-result"),
+  roundResultText: document.getElementById("round-result-text"),
+  scoreBreakdown: document.getElementById("score-breakdown"),
+  nextRoundButton: document.getElementById("next-round-button"),
   shareButton: document.getElementById("share-button"),
   helpButton: document.getElementById("help-button"),
   tutorial: document.getElementById("tutorial"),
   tutorialClose: document.getElementById("tutorial-close"),
+  hud: document.getElementById("hud"),
+  hudCombo: document.getElementById("hud-combo"),
+  hudBest: document.getElementById("hud-best"),
+  toast: document.getElementById("toast"),
 };
 
 const TUTORIAL_SEEN_KEY = "wordle_tutorial_seen";
@@ -44,21 +57,51 @@ function hasSeenTutorial() {
 const state = {
   groupId: null,
   idToken: null,
-  rows: [], // [{ guess, feedback: ["correct"|"present"|"absent", ...] }]
-  guessesRemaining: MAX_GUESSES,
-  solved: false,
-  puzzleDate: null,
+  round: null, // RoundView | null（null = 今天還沒開第一題）
+  dailyStats: null,
   currentInput: [],
   keyStatus: {}, // letter -> "correct" | "present" | "absent"
   submitting: false,
+  timerHandle: null,
 };
 
 function showMessage(text) {
   el.message.textContent = text;
   el.message.hidden = false;
+  el.startScreen.hidden = true;
+  el.timerBar.hidden = true;
   el.grid.hidden = true;
   el.keyboard.hidden = true;
-  el.finish.hidden = true;
+  el.roundResult.hidden = true;
+  el.hud.hidden = true;
+}
+
+function showToast(text) {
+  el.toast.textContent = text;
+  el.toast.hidden = false;
+  // 重新觸發 CSS 動畫：先移除再加回 class 才能連續觸發同一個 toast
+  el.toast.style.animation = "none";
+  // eslint-disable-next-line no-unused-expressions
+  el.toast.offsetHeight;
+  el.toast.style.animation = "";
+  clearTimeout(showToast._hideTimer);
+  showToast._hideTimer = setTimeout(() => {
+    el.toast.hidden = true;
+  }, 1800);
+}
+
+function spawnConfetti() {
+  const count = 18;
+  for (let i = 0; i < count; i++) {
+    const piece = document.createElement("span");
+    piece.className = "confetti-piece";
+    piece.textContent = CONFETTI_EMOJI[Math.floor(Math.random() * CONFETTI_EMOJI.length)];
+    piece.style.left = `${Math.random() * 100}vw`;
+    piece.style.animationDuration = `${1.2 + Math.random() * 1}s`;
+    piece.style.fontSize = `${0.9 + Math.random() * 0.8}rem`;
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 2400);
+  }
 }
 
 function betterStatus(a, b) {
@@ -68,7 +111,8 @@ function betterStatus(a, b) {
 
 function recomputeKeyStatus() {
   state.keyStatus = {};
-  for (const row of state.rows) {
+  if (!state.round) return;
+  for (const row of state.round.rows) {
     row.guess.split("").forEach((letter, i) => {
       const current = state.keyStatus[letter];
       state.keyStatus[letter] = current ? betterStatus(current, row.feedback[i]) : row.feedback[i];
@@ -93,9 +137,10 @@ function buildGrid() {
 }
 
 function renderSubmittedRows() {
-  state.rows.forEach((row, r) => {
+  state.round.rows.forEach((row, r) => {
     row.guess.split("").forEach((letter, c) => {
       const tile = document.getElementById(`tile-${r}-${c}`);
+      if (!tile) return;
       tile.textContent = letter;
       tile.classList.add(row.feedback[c]);
     });
@@ -103,7 +148,7 @@ function renderSubmittedRows() {
 }
 
 function renderCurrentInputRow() {
-  const r = state.rows.length;
+  const r = state.round.rows.length;
   if (r >= MAX_GUESSES) return;
   for (let c = 0; c < WORD_LENGTH; c++) {
     const tile = document.getElementById(`tile-${r}-${c}`);
@@ -148,7 +193,7 @@ function updateKeyboardColors() {
 }
 
 function handleKey(key) {
-  if (state.submitting || state.solved || state.guessesRemaining <= 0) return;
+  if (state.submitting || !state.round || state.round.finished) return;
 
   if (key === "BACK") {
     state.currentInput.pop();
@@ -168,7 +213,7 @@ function handleKey(key) {
 }
 
 function shakeCurrentRow() {
-  const r = state.rows.length;
+  const r = state.round.rows.length;
   const rowEl = document.getElementById(`row-${r}`);
   if (!rowEl) return;
   rowEl.querySelectorAll(".tile").forEach((t) => {
@@ -196,16 +241,27 @@ async function submitCurrentGuess() {
     if (!res.ok) {
       if (body.error === "invalid_word") {
         shakeCurrentRow();
-      } else if (body.error === "already_finished") {
-        // 狀態跟後端不同步了（例如另一個分頁已經玩完），重新整理狀態
+      } else if (body.error === "already_finished" || body.error === "no_active_round") {
+        // 狀態跟後端不同步了（例如超時被懶惰結算，或另一分頁已經玩完），重新整理狀態
         await loadSession();
       }
       return;
     }
 
+    const wasCombo = state.dailyStats ? state.dailyStats.currentCombo : 0;
     applyState(body);
     state.currentInput = [];
     renderAll();
+
+    if (state.round.solved) {
+      spawnConfetti();
+      showToast(`+${state.round.score} 分！`);
+      if (state.dailyStats.currentCombo > wasCombo && state.dailyStats.currentCombo >= 2) {
+        setTimeout(() => showToast(`🔥 連續 ${state.dailyStats.currentCombo} 題！`), 900);
+      }
+    } else if (state.round.finished) {
+      showToast("連續紀錄中斷");
+    }
   } catch (err) {
     showMessage("網路好像怪怪的，稍後再試一次？");
   } finally {
@@ -214,43 +270,83 @@ async function submitCurrentGuess() {
 }
 
 function applyState(body) {
-  state.rows = body.rows || [];
-  state.guessesRemaining = body.guessesRemaining;
-  state.solved = body.solved;
-  state.puzzleDate = body.puzzleDate;
+  state.round = body.round || null;
+  state.dailyStats = body.dailyStats || state.dailyStats;
   recomputeKeyStatus();
 }
 
-function renderAll() {
-  renderSubmittedRows();
-  renderCurrentInputRow();
-  updateKeyboardColors();
+function updateHud() {
+  if (!state.dailyStats) {
+    el.hud.hidden = true;
+    return;
+  }
+  el.hud.hidden = false;
+  el.hudCombo.textContent = state.dailyStats.currentCombo;
+  el.hudBest.textContent = state.dailyStats.bestScore;
+}
 
-  const finished = state.solved || state.guessesRemaining <= 0;
-  el.keyboard.hidden = finished;
-  el.finish.hidden = !finished;
+function stopTimer() {
+  if (state.timerHandle) {
+    clearInterval(state.timerHandle);
+    state.timerHandle = null;
+  }
+}
 
-  if (finished) {
-    showFinish();
+function startTimer(guessDeadlineAt, timeLimitSeconds) {
+  stopTimer();
+  const deadlineMs = new Date(guessDeadlineAt).getTime();
+  const totalMs = timeLimitSeconds * 1000;
+
+  function tick() {
+    const remainingMs = Math.max(0, deadlineMs - Date.now());
+    const fraction = totalMs > 0 ? remainingMs / totalMs : 0;
+    el.timerFill.style.width = `${Math.round(fraction * 100)}%`;
+    el.timerLabel.textContent = Math.ceil(remainingMs / 1000);
+    el.timerBar.classList.toggle("low", fraction <= 0.4 && fraction > 0.2);
+    el.timerBar.classList.toggle("critical", fraction <= 0.2);
+
+    if (remainingMs <= 0) {
+      stopTimer();
+      // client 端倒數只是視覺，真正判定一律以後端為準——時間到了就重新整理狀態，
+      // 讓後端的懶惰結算把這回合判定掉
+      loadSession();
+    }
+  }
+
+  tick();
+  state.timerHandle = setInterval(tick, 200);
+}
+
+function renderRoundResult() {
+  const round = state.round;
+  if (round.solved) {
+    el.roundResultText.textContent = `🎉 猜對了！用了 ${round.rows.length} 次\n＋${round.score} 分`;
+    if (round.scoreBreakdown) {
+      const b = round.scoreBreakdown;
+      el.scoreBreakdown.textContent = `基礎 ${b.base} 分 + 手速加成 ${b.speedBonus} 分，× 連擊倍率 ${b.multiplier.toFixed(2)}`;
+      el.scoreBreakdown.hidden = false;
+    } else {
+      el.scoreBreakdown.hidden = true;
+    }
+    el.nextRoundButton.textContent = "🎯 挑戰下一題";
+  } else {
+    el.roundResultText.textContent = round.timedOut
+      ? "⏰ 時間到，這回合失敗了\n連續紀錄重置"
+      : "😢 這次沒猜出來，連續紀錄重置";
+    el.scoreBreakdown.hidden = true;
+    el.nextRoundButton.textContent = "🔁 重新開始";
   }
 }
 
 function buildShareText() {
-  const guessCount = state.solved ? state.rows.length : "X";
-  const emojiRows = state.rows
-    .map((row) =>
-      row.feedback
-        .map((f) => (f === "correct" ? "🟩" : f === "present" ? "🟨" : "⬜"))
-        .join(""),
-    )
+  const round = state.round;
+  if (!round) return "";
+  const resultLabel = round.solved ? `${round.rows.length}/${MAX_GUESSES}` : "X";
+  const emojiRows = round.rows
+    .map((row) => row.feedback.map((f) => (f === "correct" ? "🟩" : f === "present" ? "🟨" : "⬜")).join(""))
     .join("\n");
-  return `🔤 每日 Wordle ${state.puzzleDate || ""} ${guessCount}/${MAX_GUESSES}\n\n${emojiRows}`;
-}
-
-function showFinish() {
-  el.finishText.textContent = state.solved
-    ? `🎉 猜對了！用了 ${state.rows.length} 次\n輸入「wordle 排行」到群組看排行榜`
-    : `😢 這次沒猜出來，答案下次公布在排行榜\n輸入「wordle 排行」到群組看看大家的成績`;
+  const scoreLine = round.solved ? `本題 +${round.score} 分（連擊 x${state.dailyStats.currentCombo}）` : "";
+  return `🔤 每日 Wordle ${resultLabel}\n${scoreLine}\n\n${emojiRows}`.trim();
 }
 
 async function shareResult() {
@@ -263,6 +359,67 @@ async function shareResult() {
     }
   } catch (err) {
     // 使用者取消分享或分享失敗都不用特別處理
+  }
+}
+
+function renderAll() {
+  updateHud();
+  el.message.hidden = true;
+
+  if (!state.round) {
+    stopTimer();
+    el.startScreen.hidden = false;
+    el.timerBar.hidden = true;
+    el.grid.hidden = true;
+    el.keyboard.hidden = true;
+    el.roundResult.hidden = true;
+    const solvedToday = state.dailyStats ? state.dailyStats.roundsSolved : 0;
+    el.startText.textContent =
+      solvedToday > 0
+        ? `今天已經解出 ${solvedToday} 題，最高 ${state.dailyStats.bestScore} 分！\n準備好挑戰下一題了嗎？`
+        : "準備好了嗎？解開一題可以馬上挑戰下一題，\n連續答對分數越疊越高，但時間會越來越緊張！";
+    return;
+  }
+
+  el.startScreen.hidden = true;
+  el.grid.hidden = false;
+  buildGrid();
+  renderSubmittedRows();
+
+  if (!state.round.finished) {
+    renderCurrentInputRow();
+    buildKeyboard();
+    el.timerBar.hidden = false;
+    el.keyboard.hidden = false;
+    el.roundResult.hidden = true;
+    startTimer(state.round.guessDeadlineAt, state.round.timeLimitSeconds);
+  } else {
+    stopTimer();
+    el.timerBar.hidden = true;
+    el.keyboard.hidden = true;
+    el.roundResult.hidden = false;
+    renderRoundResult();
+  }
+}
+
+async function requestNextRound() {
+  try {
+    const res = await fetch("/api/wordle/next-round", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken: state.idToken, groupId: state.groupId }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      // 409 round_in_progress：跟後端狀態不同步，重新載入就好
+      await loadSession();
+      return;
+    }
+    applyState(body);
+    state.currentInput = [];
+    renderAll();
+  } catch (err) {
+    showMessage("網路好像怪怪的，稍後再試一次？");
   }
 }
 
@@ -281,10 +438,6 @@ async function loadSession() {
 
   applyState(body);
   el.subtitle.textContent = body.displayName ? `${body.displayName}，開始挑戰吧！` : "開始挑戰吧！";
-  el.message.hidden = true;
-  el.grid.hidden = false;
-  buildGrid();
-  buildKeyboard();
   renderAll();
 }
 
@@ -334,6 +487,8 @@ async function init() {
   await loadSession();
 }
 
+el.startButton.addEventListener("click", requestNextRound);
+el.nextRoundButton.addEventListener("click", requestNextRound);
 el.shareButton.addEventListener("click", shareResult);
 el.helpButton.addEventListener("click", showTutorial);
 el.tutorialClose.addEventListener("click", hideTutorial);

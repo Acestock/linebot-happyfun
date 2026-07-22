@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  baseScoreForGuesses,
   computeFeedback,
   DIGITS,
   isValidGuess,
   isWin,
   MAX_GUESSES,
-  pickDailyAnswer,
+  pickRoundAnswer,
 } from "../logic";
 
 describe("isValidGuess", () => {
@@ -64,30 +65,19 @@ describe("isWin", () => {
   });
 });
 
-describe("pickDailyAnswer", () => {
+describe("pickRoundAnswer", () => {
   it("always returns DIGITS distinct digit characters", () => {
-    const answer = pickDailyAnswer("2026-07-16", []);
+    const answer = pickRoundAnswer([]);
     expect(answer).toHaveLength(DIGITS);
     expect(new Set(answer).size).toBe(DIGITS);
     expect(/^\d+$/.test(answer)).toBe(true);
   });
 
-  it("is deterministic for the same date", () => {
-    const a = pickDailyAnswer("2026-07-16", []);
-    const b = pickDailyAnswer("2026-07-16", []);
-    expect(a).toBe(b);
-  });
-
-  it("produces a different answer for a different date (in general)", () => {
-    const a = pickDailyAnswer("2026-07-16", []);
-    const b = pickDailyAnswer("2026-07-17", []);
-    expect(a).not.toBe(b);
-  });
-
   it("avoids a recently-used answer when alternatives exist", () => {
-    const answer = pickDailyAnswer("2026-07-16", []);
-    const again = pickDailyAnswer("2026-07-16", [answer]);
-    expect(again).not.toBe(answer);
+    const answer = pickRoundAnswer([]);
+    for (let i = 0; i < 20; i++) {
+      expect(pickRoundAnswer([answer])).not.toBe(answer);
+    }
   });
 });
 
@@ -95,5 +85,24 @@ describe("MAX_GUESSES / DIGITS", () => {
   it("uses the classic 4-digit 1A2B with a generous guess budget", () => {
     expect(DIGITS).toBe(4);
     expect(MAX_GUESSES).toBe(10);
+  });
+});
+
+describe("baseScoreForGuesses", () => {
+  it("gives the max score for solving in one guess", () => {
+    expect(baseScoreForGuesses(1)).toBe(100);
+  });
+
+  it("gives the floor score for using every guess", () => {
+    expect(baseScoreForGuesses(MAX_GUESSES)).toBe(19);
+  });
+
+  it("decreases monotonically as more guesses are used", () => {
+    let prev = baseScoreForGuesses(1);
+    for (let n = 2; n <= MAX_GUESSES; n++) {
+      const cur = baseScoreForGuesses(n);
+      expect(cur).toBeLessThanOrEqual(prev);
+      prev = cur;
+    }
   });
 });

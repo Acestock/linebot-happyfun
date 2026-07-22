@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  baseScoreForGuesses,
   computeFeedback,
   isValidGuess,
   isWin,
   MAX_GUESSES,
-  pickDailyWord,
+  pickRoundWord,
   WORD_LIST,
 } from "../logic";
 
@@ -105,26 +106,41 @@ describe("MAX_GUESSES", () => {
   });
 });
 
-describe("pickDailyWord", () => {
+describe("pickRoundWord", () => {
   it("always returns a word from the word list", () => {
-    const word = pickDailyWord("2026-07-16", []);
+    const word = pickRoundWord([]);
     expect(WORD_LIST).toContain(word);
   });
 
-  it("is deterministic for the same date", () => {
-    const a = pickDailyWord("2026-07-16", []);
-    const b = pickDailyWord("2026-07-16", []);
-    expect(a).toBe(b);
-  });
-
-  it("avoids words in the recent-answers list when alternatives exist", () => {
-    const word = pickDailyWord("2026-07-16", []);
-    const again = pickDailyWord("2026-07-16", [word]);
-    expect(again).not.toBe(word);
+  it("never returns a word in the recent-answers list when alternatives exist", () => {
+    // 從詞庫排除只留一個字，多跑幾次一定都挑到同一個，證明真的有避開
+    const allButOne = WORD_LIST.slice(1);
+    for (let i = 0; i < 20; i++) {
+      expect(pickRoundWord(allButOne)).toBe(WORD_LIST[0]);
+    }
   });
 
   it("falls back to allowing repeats if the entire word list was recently used", () => {
-    const word = pickDailyWord("2026-07-16", [...WORD_LIST]);
+    const word = pickRoundWord([...WORD_LIST]);
     expect(WORD_LIST).toContain(word);
+  });
+});
+
+describe("baseScoreForGuesses", () => {
+  it("gives the max score for solving in one guess", () => {
+    expect(baseScoreForGuesses(1)).toBe(100);
+  });
+
+  it("gives the floor score for using every guess", () => {
+    expect(baseScoreForGuesses(MAX_GUESSES)).toBe(25);
+  });
+
+  it("decreases monotonically as more guesses are used", () => {
+    let prev = baseScoreForGuesses(1);
+    for (let n = 2; n <= MAX_GUESSES; n++) {
+      const cur = baseScoreForGuesses(n);
+      expect(cur).toBeLessThanOrEqual(prev);
+      prev = cur;
+    }
   });
 });

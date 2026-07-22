@@ -19,15 +19,38 @@
     <main>
       <div id="message" class="message" hidden></div>
 
+      <div id="start-screen" class="start-screen" hidden>
+        <p id="start-text" class="start-text"></p>
+        <button id="start-button" class="start-button">🎯 開始挑戰</button>
+      </div>
+
+      <div id="timer-bar" class="timer-bar" hidden>
+        <div id="timer-fill" class="timer-fill"></div>
+        <span id="timer-label" class="timer-label">60</span>
+      </div>
+
       <div id="grid" class="grid" hidden></div>
 
       <div id="keyboard" class="keyboard" hidden></div>
 
-      <div id="finish" class="finish" hidden>
-        <p id="finish-text"></p>
+      <div id="round-result" class="round-result" hidden>
+        <p id="round-result-text"></p>
+        <div id="score-breakdown" class="score-breakdown" hidden></div>
+        <button id="next-round-button" class="next-round-button"></button>
         <button id="share-button" class="share-button">📤 分享到群組</button>
       </div>
     </main>
+
+    <div id="hud" class="hud" hidden>
+      <div class="hud-row" title="連續答對">
+        <span class="hud-icon">🔥</span><span id="hud-combo">0</span>
+      </div>
+      <div class="hud-row" title="今日最高分">
+        <span class="hud-icon">🏆</span><span id="hud-best">0</span>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
 
     <div id="tutorial" class="modal-overlay" hidden>
       <div class="modal">
@@ -48,7 +71,9 @@
           <li><span class="dot absent"></span>灰色：答案裡沒有這個字母</li>
         </ul>
 
-        <p>用下方鍵盤打字，湊滿 5 個字母後點「確認」送出。猜對或用完 6 次機會後遊戲結束，可以分享成績到群組，或在群組輸入「wordle 排行」看看大家的排名（依猜測次數、再依花費時間排序）。</p>
+        <p>用下方鍵盤打字，湊滿 5 個字母後點「確認」送出。猜對或用完 6 次機會後這一題結束，馬上可以挑戰下一題！</p>
+        <p class="modal-label">🔥 連續挑戰：</p>
+        <p>解開一題就能馬上開下一題，連續答對的題數（連擊）會讓分數倍率越疊越高——但每題的作答時間也會跟著縮短（第 1 題 60 秒，第 10 題只剩 10 秒），答錯或時間到就會中斷連擊，難度重新從第 1 題開始累積。輸入「wordle 排行」看看誰今天單題分數最高！</p>
 
         <button id="tutorial-close" class="tutorial-close">開始挑戰！</button>
       </div>

@@ -11,24 +11,18 @@ export function isOneATwoBLeaderboardCommand(text: string): boolean {
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 export function buildLeaderboardText(leaderboard: Leaderboard): string {
-  if (!leaderboard.puzzleDate) {
+  if (leaderboard.entries.length === 0) {
     return "今天還沒有人玩過 1A2B，打開選單裡的「🔐 每日 1A2B」來挑戰吧！";
   }
 
-  const lines = [`🔐 今日 1A2B 排行榜（${leaderboard.puzzleDate}）\n`];
+  const lines = [`🔐 今日 1A2B 排行榜（${leaderboard.date}）— 依單回合最高分排名\n`];
 
-  if (leaderboard.solved.length === 0) {
-    lines.push("還沒有人過關，開啟選單裡的「🔐 每日 1A2B」來挑戰吧！");
-  } else {
-    leaderboard.solved.forEach((entry, i) => {
-      const medal = MEDALS[i] ?? `${i + 1}.`;
-      lines.push(`${medal} ${entry.displayName}　${entry.guessCount} 次`);
-    });
-  }
-
-  if (leaderboard.unsolvedCount > 0) {
-    lines.push("", `還有 ${leaderboard.unsolvedCount} 人正在挑戰中`);
-  }
+  leaderboard.entries.forEach((entry, i) => {
+    const medal = MEDALS[i] ?? `${i + 1}.`;
+    lines.push(
+      `${medal} ${entry.displayName}　${entry.bestScore} 分（連擊 x${entry.bestCombo}，解出 ${entry.roundsSolved}/${entry.roundsPlayed} 題）`,
+    );
+  });
 
   return lines.join("\n");
 }
