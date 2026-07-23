@@ -100,7 +100,7 @@ body {
 
 main {
   width: 100%;
-  max-width: 360px;
+  max-width: 480px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -121,7 +121,6 @@ main {
   grid-template-rows: repeat(6, 1fr);
   gap: 6px;
   width: 100%;
-  max-width: 300px;
   padding: 14px;
   background: var(--surface);
   border-radius: 16px;
@@ -228,7 +227,6 @@ main {
 .key {
   flex: 1;
   min-width: 0;
-  max-width: 34px;
   height: 44px;
   border: none;
   border-radius: 6px;
@@ -250,7 +248,7 @@ main {
 }
 
 .key.wide {
-  max-width: 56px;
+  flex: 1.6;
   font-size: 0.7rem;
 }
 
@@ -305,7 +303,6 @@ main {
 .timer-bar {
   position: relative;
   width: 100%;
-  max-width: 300px;
   height: 10px;
   background: rgba(128, 128, 128, 0.18);
   border-radius: 999px;

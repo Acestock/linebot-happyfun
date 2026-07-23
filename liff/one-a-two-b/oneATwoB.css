@@ -100,7 +100,7 @@ body {
 
 main {
   width: 100%;
-  max-width: 360px;
+  max-width: 480px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -117,14 +117,13 @@ main {
   width: 100%;
 }
 
-/* 10 次機會、4 位數字，格子比 Wordle 更高、更窄——超出視窗高度時讓格子區自己捲動，
-   不要把整頁往下推、擠壓到鍵盤。 */
+/* 10 次機會、4 位數字，格子填滿整個寬度後每格會比 Wordle 更大——超出視窗高度時
+   讓格子區自己捲動，不要把整頁往下推、擠壓到鍵盤。 */
 .grid {
   grid-template-rows: repeat(10, 1fr);
   gap: 4px;
   width: 100%;
-  max-width: 200px;
-  max-height: 40vh;
+  max-height: 50vh;
   overflow-y: auto;
   padding: 12px;
   background: var(--surface);
@@ -231,7 +230,6 @@ main {
 .key {
   flex: 1;
   min-width: 0;
-  max-width: 48px;
   height: 46px;
   border: none;
   border-radius: 6px;
@@ -252,7 +250,7 @@ main {
 }
 
 .key.wide {
-  max-width: 72px;
+  flex: 1.6;
   font-size: 0.75rem;
 }
 
@@ -292,7 +290,6 @@ main {
 .timer-bar {
   position: relative;
   width: 100%;
-  max-width: 200px;
   height: 10px;
   background: rgba(128, 128, 128, 0.18);
   border-radius: 999px;
