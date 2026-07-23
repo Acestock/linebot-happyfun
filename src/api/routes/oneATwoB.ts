@@ -1,7 +1,7 @@
 import { Router, type Request, type RequestHandler, type Response } from "express";
 import { loadEnv } from "../../config/env";
 import { verifyLineIdToken } from "../../line/idToken";
-import { upsertGroupMemberByLineIds } from "../../db/groupRepository";
+import { isValidLineGroupId, upsertGroupMemberByLineIds } from "../../db/groupRepository";
 import { prisma } from "../../db/prisma";
 import { getLeaderboard, getSessionState, startNextRound, submitGuess } from "../../one-a-two-b/manager";
 import { logger } from "../../utils/logger";
@@ -26,6 +26,13 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): Reque
 async function resolveMember(idToken: unknown, groupId: unknown, res: Response) {
   if (typeof idToken !== "string" || typeof groupId !== "string" || groupId.length === 0) {
     res.status(400).json({ error: "idToken and groupId are required" });
+    return null;
+  }
+  if (!isValidLineGroupId(groupId)) {
+    // 不是合法的 LINE 群組 ID 格式（例如前端不小心送了我們自己的內部 UUID）——直接擋下來，
+    // 不要讓它在資料庫裡建立一筆對不上真實群組的「影子群組」。
+    logger.warn({ groupId }, "one-a-two-b API received a malformed groupId, rejecting");
+    res.status(400).json({ error: "invalid groupId format" });
     return null;
   }
 

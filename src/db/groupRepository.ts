@@ -3,6 +3,16 @@ import { prisma } from "./prisma";
 import { getLineClient } from "../line/client";
 import { logger } from "../utils/logger";
 
+/**
+ * 真正的 LINE 群組 ID 格式：C 開頭接 32 位英數字（沒有連字號）。LIFF 呼叫 API 時帶來的
+ * groupId 如果不符合這個格式（例如誤用了我們自己資料庫的 UUID），代表不是合法的 LINE
+ * 群組 ID——呼叫端要擋下來，不要讓它悄悄建立一筆「影子群組」污染資料、導致排行榜等
+ * 依 groupId 查詢的功能對不上。
+ */
+export function isValidLineGroupId(value: string): boolean {
+  return /^C[0-9a-f]{32}$/i.test(value);
+}
+
 export async function upsertGroupFromEvent(event: webhook.Event) {
   const source = event.source;
   if (!source || source.type !== "group") return null;
