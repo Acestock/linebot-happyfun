@@ -105,6 +105,7 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 > 1. `LIFF_CHANNEL_ID` 要填**純數字**的 Channel ID，不是 LINE 建立 LIFF app 後顯示的完整網址（`https://liff.line.me/xxxxxxxxxx-yyyyyyyy`）。LIFF ID 本身格式就是 `{Channel ID}-{隨機字串}`，網址裡第一個 `-` 前面那段數字就是 Channel ID，可以直接拿來用。填錯的症狀是：LIFF 頁面打得開，但一直卡在「身分驗證失敗，請關閉頁面重新從群組按鈕打開」。
 > 2. `liff/` 目錄是純靜態檔案、故意不進 TypeScript build，`Dockerfile` 的正式環境 stage 要記得把它一起 `COPY` 進最終 image（不能只複製 `dist/`），不然 `/liff` 路徑在正式環境會回 404「Cannot GET /liff」。
 > 3. 寫 LIFF 頁面的 CSS 時，凡是會被 JS 用 `hidden` 屬性切換顯示/隱藏的元素，`display` 宣告一定要包在 `selector:not([hidden])` 裡面，不能直接寫在 `selector { display: ... }` 上——author CSS 的 `display` 宣告會蓋過 `[hidden]` 的瀏覽器預設隱藏效果，導致該元素永遠顯示、`hidden = true` 完全沒用（症狀：彈窗跳出來就再也關不掉，把整個畫面擋住）。
+> 4. **千萬不要用 `liff.getContext().groupId` 當作真正的 LINE 群組 ID**——LINE 平台從 2023 年 2 月起就不再透過這個 API 提供真正的群組 ID，回傳的是一個跟 Messaging API 對不上的內部替代值（長得像 UUID）。這個專案的做法是：後端在 `src/line/partyMenu.ts` 產生 party 選單時，把已經知道的真實群組 ID 夾帶進 LIFF 網址的 query string（`https://liff.line.me/{LIFF_ID}?groupId=...`），LIFF 頁面（`liff/wordle.js`、`liff/one-a-two-b/oneATwoB.js`）改成從網址讀取，不依賴 `liff.getContext()`。後端 API（`src/api/routes/wordle.ts`、`oneATwoB.ts`）也會用 `isValidLineGroupId()`（`src/db/groupRepository.ts`）驗證格式、擋下不合法的值，避免悄悄建立對不上真實群組的「影子群組」污染資料。症狀：LIFF 玩遊戲一切正常，但聊天室排行榜指令查不到剛剛的成績。
 
 ## 每日 1A2B（LIFF 網頁小遊戲）
 

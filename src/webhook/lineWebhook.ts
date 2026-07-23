@@ -135,7 +135,7 @@ async function handleEvent(event: webhook.Event): Promise<void> {
     }
 
     if (isPartyCommand(text)) {
-      await reply(event.replyToken, [buildPartyMenu()]);
+      await reply(event.replyToken, [buildPartyMenu(group.lineGroupId)]);
       return;
     }
 

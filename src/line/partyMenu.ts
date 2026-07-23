@@ -216,7 +216,17 @@ function gameRow(game: GameDefinition, index: number) {
   };
 }
 
-export function buildPartyMenu(): messagingApi.Message {
+/**
+ * LINE 平台在 2023 年 2 月起不再讓 liff.getContext() 拿到真正的群組 ID（改回傳一個
+ * 跟真實 ID 對不上的內部替代值），所以正確的群組 ID 得由我們自己在建立這個選單時
+ * （已經知道是哪個群組）夾帶進 LIFF 網址的 query string，LIFF 頁面載入後改成從網址
+ * 讀取，而不是依賴 liff.getContext().groupId。
+ */
+function liffUrlWithGroupId(liffId: string, lineGroupId: string): string {
+  return `https://liff.line.me/${liffId}?groupId=${encodeURIComponent(lineGroupId)}`;
+}
+
+export function buildPartyMenu(lineGroupId: string): messagingApi.Message {
   const games = listGames();
   const env = loadEnv();
   // 每個 LIFF 小遊戲各自檢查有沒有設定對應的 LIFF_ID（例如本機開發還沒申請），
@@ -227,7 +237,7 @@ export function buildPartyMenu(): messagingApi.Message {
           "🔤",
           "每日 Wordle",
           "5 字母猜猜看，跟群組一起拚排行榜",
-          `https://liff.line.me/${env.LIFF_ID}`,
+          liffUrlWithGroupId(env.LIFF_ID, lineGroupId),
           "wordle 排行",
         )
       : null,
@@ -236,7 +246,7 @@ export function buildPartyMenu(): messagingApi.Message {
           "🔐",
           "每日 1A2B",
           "猜 4 位不重複數字密碼，幾A幾B推理出答案",
-          `https://liff.line.me/${env.LIFF_ID_ONE_A_TWO_B}`,
+          liffUrlWithGroupId(env.LIFF_ID_ONE_A_TWO_B, lineGroupId),
           "1a2b 排行",
         )
       : null,

@@ -441,6 +441,30 @@ async function loadSession() {
   renderAll();
 }
 
+/**
+ * LINE 平台從 2023 年 2 月起不再讓 liff.getContext() 拿到真正的群組 ID（改回傳一個
+ * 跟 Messaging API 對不上的內部替代值），所以群組 ID 改成由後端在產生 party 選單時
+ * （見 src/line/partyMenu.ts）夾帶進 LIFF 網址的 query string，這裡從網址讀出來。
+ * LIFF 導頁有時會把額外的 query string 包進 liff.state 而不是直接留在網址上，
+ * 兩個都檢查一次才夠保險。
+ */
+function getGroupIdFromUrl() {
+  const direct = new URLSearchParams(location.search).get("groupId");
+  if (direct) return direct;
+
+  if (liff.state) {
+    try {
+      const stateUrl = new URL(liff.state, location.origin);
+      const fromState = stateUrl.searchParams.get("groupId");
+      if (fromState) return fromState;
+    } catch (err) {
+      // liff.state 不是預期的 URL 格式，忽略
+    }
+  }
+
+  return null;
+}
+
 async function init() {
   let liffId;
   try {
@@ -475,8 +499,11 @@ async function init() {
     return;
   }
 
-  // ⚠️ 暫時除錯用，排查完 groupId 問題後會拿掉
-  alert(`[除錯] context.type=${context.type}\ncontext.groupId=${context.groupId}`);
+  const groupId = getGroupIdFromUrl();
+  if (!groupId) {
+    showMessage("找不到群組資訊，請回群組重新輸入「party」取得最新的按鈕再開啟一次");
+    return;
+  }
 
   const idToken = liff.getIDToken();
   if (!idToken) {
@@ -484,7 +511,7 @@ async function init() {
     return;
   }
 
-  state.groupId = context.groupId;
+  state.groupId = groupId;
   state.idToken = idToken;
 
   await loadSession();
