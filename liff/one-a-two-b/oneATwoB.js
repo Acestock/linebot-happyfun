@@ -451,6 +451,9 @@ async function init() {
     return;
   }
 
+  // ⚠️ 暫時除錯用，排查完 groupId 問題後會拿掉
+  alert(`[除錯] context.type=${context.type}\ncontext.groupId=${context.groupId}`);
+
   const idToken = liff.getIDToken();
   if (!idToken) {
     showMessage("無法取得身分資訊，請關閉頁面重新開啟");
