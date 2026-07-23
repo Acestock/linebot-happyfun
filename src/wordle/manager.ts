@@ -322,3 +322,36 @@ export async function getLeaderboard(groupId: string): Promise<Leaderboard> {
     })),
   };
 }
+
+export interface AllTimeEntry {
+  memberId: string;
+  displayName: string;
+  bestScore: number;
+  bestCombo: number;
+  date: string;
+}
+
+/** 史上最高分 TOP 3：不限日期，每人只計入自己締造過最高分的那一天。 */
+export async function getAllTimeTopThree(groupId: string): Promise<AllTimeEntry[]> {
+  const rows = await prisma.wordleDailyStats.findMany({
+    where: { groupId, roundsPlayed: { gt: 0 } },
+    include: { member: true },
+    orderBy: [{ bestScore: "desc" }, { bestCombo: "desc" }],
+  });
+
+  const seen = new Set<string>();
+  const top: AllTimeEntry[] = [];
+  for (const row of rows) {
+    if (seen.has(row.memberId)) continue;
+    seen.add(row.memberId);
+    top.push({
+      memberId: row.memberId,
+      displayName: row.member.displayName ?? "神秘玩家",
+      bestScore: row.bestScore,
+      bestCombo: row.bestCombo,
+      date: row.date,
+    });
+    if (top.length === 3) break;
+  }
+  return top;
+}

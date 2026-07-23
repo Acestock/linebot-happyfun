@@ -16,11 +16,12 @@ import {
   recordActivity,
   type MeetupReply,
 } from "../meetup/manager";
-import { getLeaderboard } from "../wordle/manager";
-import { buildLeaderboardText, isWordleLeaderboardCommand } from "../wordle/messages";
-import { getLeaderboard as getOneATwoBLeaderboard } from "../one-a-two-b/manager";
+import { getAllTimeTopThree, getLeaderboard } from "../wordle/manager";
+import { buildAllTimeTopThreeCard, buildLeaderboardCard, isWordleLeaderboardCommand } from "../wordle/messages";
+import { getAllTimeTopThree as getOneATwoBAllTimeTopThree, getLeaderboard as getOneATwoBLeaderboard } from "../one-a-two-b/manager";
 import {
-  buildLeaderboardText as buildOneATwoBLeaderboardText,
+  buildAllTimeTopThreeCard as buildOneATwoBAllTimeTopThreeCard,
+  buildLeaderboardCard as buildOneATwoBLeaderboardCard,
   isOneATwoBLeaderboardCommand,
 } from "../one-a-two-b/messages";
 
@@ -93,7 +94,10 @@ async function handleEvent(event: webhook.Event): Promise<void> {
     }
 
     // 小聚進行中，party 選單／遊戲的按鈕（可能是舊訊息裡殘留的）一律停用
-    if (["help", "start_game", "cancel_game"].includes(data.action) && (await hasActiveMeetup(group.id))) {
+    if (
+      ["help", "start_game", "cancel_game", "wordle_top3", "one_a_two_b_top3"].includes(data.action) &&
+      (await hasActiveMeetup(group.id))
+    ) {
       return;
     }
 
@@ -109,6 +113,16 @@ async function handleEvent(event: webhook.Event): Promise<void> {
       case "cancel_game": {
         const text = await cancelGame(group.id);
         await replyText(event.replyToken, text);
+        return;
+      }
+      case "wordle_top3": {
+        const top3 = await getAllTimeTopThree(group.id);
+        await reply(event.replyToken, [buildAllTimeTopThreeCard(top3)]);
+        return;
+      }
+      case "one_a_two_b_top3": {
+        const top3 = await getOneATwoBAllTimeTopThree(group.id);
+        await reply(event.replyToken, [buildOneATwoBAllTimeTopThreeCard(top3)]);
         return;
       }
       default:
@@ -141,13 +155,13 @@ async function handleEvent(event: webhook.Event): Promise<void> {
 
     if (isWordleLeaderboardCommand(text)) {
       const leaderboard = await getLeaderboard(group.id);
-      await replyText(event.replyToken, buildLeaderboardText(leaderboard));
+      await reply(event.replyToken, [buildLeaderboardCard(leaderboard)]);
       return;
     }
 
     if (isOneATwoBLeaderboardCommand(text)) {
       const leaderboard = await getOneATwoBLeaderboard(group.id);
-      await replyText(event.replyToken, buildOneATwoBLeaderboardText(leaderboard));
+      await reply(event.replyToken, [buildOneATwoBLeaderboardCard(leaderboard)]);
       return;
     }
 
