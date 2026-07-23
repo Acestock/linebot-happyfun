@@ -75,6 +75,6 @@ async function fetchAndStoreDisplayName(
       data: { displayName: profile.displayName },
     });
   } catch (err) {
-    logger.warn({ err, lineUserId }, "could not fetch group member profile");
+    logger.warn({ err, lineUserId, lineGroupId }, "could not fetch group member profile");
   }
 }
