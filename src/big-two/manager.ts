@@ -90,6 +90,23 @@ export interface StateView {
   game: GameView | null;
 }
 
+/**
+ * current_trick 這個 Json 欄位在舊版程式碼裡存的是「只有最後一手」的 { seatIndex, cards }，
+ * 現在改成 { plays: [...] } 存整輪的出牌歷史——正常情況下不會混到舊格式，但如果資料庫裡
+ * 還留著舊版程式碼跑過留下的牌局（例如上一次部署時玩到一半），讀出來的 JSON 會是舊格式，
+ * 直接當新格式用會在 .plays 上炸掉。這裡統一做一次防禦性轉換，舊格式就包成單筆 plays，
+ * 完全認不出來的形狀就當作沒有牌局中的輪次，寧可畫面重置也不要整支 API 掛掉。
+ */
+function normalizeCurrentTrick(raw: unknown): { plays: TrickPlay[] } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.plays)) return { plays: obj.plays as TrickPlay[] };
+  if (typeof obj.seatIndex === "number" && Array.isArray(obj.cards)) {
+    return { plays: [{ seatIndex: obj.seatIndex, cards: obj.cards as CardCode[] }] };
+  }
+  return null;
+}
+
 function toGameView(game: GameWithSeats, member: MemberIdentity): GameView {
   const seats = [...game.seats]
     .sort((a, b) => a.seatIndex - b.seatIndex)
@@ -113,7 +130,7 @@ function toGameView(game: GameWithSeats, member: MemberIdentity): GameView {
     isHost: game.hostMemberId === member.id,
     botCount: game.botCount,
     currentTurnSeat: game.currentTurnSeat,
-    currentTrick: (game.currentTrick as { plays: TrickPlay[] } | null) ?? null,
+    currentTrick: normalizeCurrentTrick(game.currentTrick),
     turnDeadlineAt: game.turnDeadlineAt ? game.turnDeadlineAt.toISOString() : null,
     seats,
     mySeatIndex: seats.find((s) => s.isSelf)?.seatIndex ?? null,
@@ -133,7 +150,7 @@ function toTableState(game: GameWithSeats): TableState {
   return {
     seats,
     currentTurnSeat: game.currentTurnSeat ?? 0,
-    currentTrick: (game.currentTrick as { plays: TrickPlay[] } | null) ?? null,
+    currentTrick: normalizeCurrentTrick(game.currentTrick),
     passCount: game.passCount,
     // 52 張都還在手上代表這輪剛發完牌、整場遊戲一手都還沒出過，用來判斷梅花 3 規則。
     isFirstTrickOfGame: totalCardsInHands === 52,

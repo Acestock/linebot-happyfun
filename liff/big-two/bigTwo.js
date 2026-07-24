@@ -329,7 +329,14 @@ async function pollState() {
     });
     const body = await res.json();
     if (!res.ok) {
-      showMessage("身分驗證失敗，請關閉頁面重新從群組按鈕打開");
+      // 401 才是真的身分驗證失敗；400/500 是別的問題（例如伺服器端錯誤），
+      // 混在一起顯示同一句話會誤導除錯方向，這裡分開處理並把細節印到 console。
+      console.error("poll /state failed", res.status, body);
+      if (res.status === 401) {
+        showMessage("身分驗證失敗，請關閉頁面重新從群組按鈕打開");
+      } else {
+        showMessage(`連線異常（${res.status}），請稍後再試一次，如果一直發生請聯絡管理員`);
+      }
       return;
     }
     applyState(body);
@@ -365,7 +372,8 @@ async function postAction(path, extraBody) {
     });
     const body = await res.json();
     if (!res.ok) {
-      return { ok: false, error: body.error };
+      console.error(`action /${path} failed`, res.status, body);
+      return { ok: false, error: body.error, status: res.status };
     }
     applyState(body);
     renderAll();
