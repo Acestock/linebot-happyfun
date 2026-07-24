@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAllTimeTopThreeCard, buildLeaderboardCard, isBigTwoLeaderboardCommand } from "../messages";
+import { buildAllTimeTopThreeCard, buildGameInviteCard, buildLeaderboardCard, isBigTwoLeaderboardCommand } from "../messages";
 import type { AllTimeEntry, Leaderboard } from "../manager";
 
 describe("isBigTwoLeaderboardCommand", () => {
@@ -64,5 +64,16 @@ describe("buildAllTimeTopThreeCard", () => {
     expect(json).toContain("2026-07-10");
     expect(json).toContain("小華");
     expect(json).toContain("2026-07-15");
+  });
+});
+
+describe("buildGameInviteCard", () => {
+  it("includes the host's name, seat count, and a uri action pointing at the LIFF url", () => {
+    const message = buildGameInviteCard("小明", 4, "https://liff.line.me/1234-abcd?groupId=Cabc");
+    const json = JSON.stringify(message);
+    expect(json).toContain("小明");
+    expect(json).toContain("4 人局");
+    expect(json).toContain("https://liff.line.me/1234-abcd?groupId=Cabc");
+    expect(json).toContain('"type":"uri"');
   });
 });

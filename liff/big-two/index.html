@@ -20,8 +20,11 @@
       <div id="message" class="message" hidden></div>
 
       <div id="no-game-screen" class="no-game-screen" hidden>
-        <p class="no-game-text">目前沒有進行中的牌局，找 3 個人（或機器人）湊一桌吧！</p>
-        <button id="create-button" class="primary-button">🃏 建立新遊戲</button>
+        <p class="no-game-text">目前沒有進行中的牌局，選一桌人數開局吧！</p>
+        <div class="create-row">
+          <button id="create-3-button" class="primary-button">🃏 建立 3 人局</button>
+          <button id="create-4-button" class="primary-button">🃏 建立 4 人局</button>
+        </div>
       </div>
 
       <div id="lobby-screen" class="lobby-screen" hidden>
@@ -32,8 +35,10 @@
           <button id="join-button" class="primary-button">➕ 加入這桌</button>
         </div>
 
+        <p id="lobby-spectator-note" class="spectator-note" hidden>🪑 座位已滿，你可以旁觀這場對局</p>
+
         <div id="host-controls" class="host-controls" hidden>
-          <p class="host-controls-label">補幾隻機器人湊人數？（不夠 4 人開局時會自動補滿）</p>
+          <p class="host-controls-label">補幾隻機器人湊人數？（不夠開局時會自動補滿）</p>
           <div class="bot-stepper">
             <button id="bot-minus" class="stepper-button" aria-label="減少機器人">－</button>
             <span id="bot-count" class="bot-count">0</span>
@@ -46,6 +51,7 @@
       </div>
 
       <div id="table-screen" class="table-screen" hidden>
+        <p id="spectator-badge" class="spectator-badge" hidden>👀 觀戰模式</p>
         <div id="seat-strip" class="seat-strip"></div>
 
         <div id="timer-bar" class="timer-bar" hidden>
@@ -60,8 +66,9 @@
         </div>
 
         <div id="hand-area" class="hand-area"></div>
+        <p id="spectator-hand-note" class="spectator-note" hidden>你正在旁觀，看不到任何人的手牌</p>
 
-        <div class="action-row">
+        <div id="action-row" class="action-row">
           <button id="pass-button" class="secondary-button" hidden>🙅 跳過</button>
           <button id="play-button" class="primary-button" disabled>▶️ 出牌</button>
         </div>
@@ -79,19 +86,19 @@
     <div id="tutorial" class="modal-overlay" hidden>
       <div class="modal">
         <h2>怎麼玩？</h2>
-        <p>4 人輪流出牌，牌型大小：單張 &lt; 對子 &lt; 三條 &lt; 五張牌型（順子 &lt; 同花 &lt; 葫蘆 &lt; 鐵支 &lt; 同花順）。</p>
+        <p>3 人局或 4 人局輪流出牌，牌型大小：單張 &lt; 對子 &lt; 三條 &lt; 五張牌型（順子 &lt; 同花 &lt; 葫蘆 &lt; 鐵支 &lt; 同花順）。</p>
         <p class="modal-label">基本規則：</p>
         <ul class="legend">
-          <li>持有梅花 3 的人先出，且開局第一手一定要包含梅花 3</li>
+          <li>持有梅花 3 的人先出，且開局第一手一定要包含梅花 3；3 人局 52 張牌無法平分，多的那一張直接歸梅花 3 那位（拿 18 張，其他兩人各 17 張）</li>
           <li>花色大小（同點數單張才會比）：黑桃 &gt; 紅心 &gt; 方塊 &gt; 梅花</li>
           <li>接下來只能出「同類型、更大」的牌，或選擇跳過</li>
           <li>跳過一次就退出這一輪，直到這一輪結束前都不能再出牌</li>
           <li>大家都跳過之後，最後出牌的人可以自由開新的一輪</li>
           <li>出完手牌名次最好，一直玩到只剩一人還有牌為止</li>
         </ul>
-        <p>缺人的座位開局時會自動由機器人補上，機器人只用簡單邏輯出牌，純粹是陪你湊一桌，不會刻意留牌算計。</p>
+        <p>建立牌局後群組會收到通知，缺人的座位開局時會自動由機器人補上（機器人只用簡單邏輯出牌，純粹是陪你湊一桌，不會刻意留牌算計）；座位滿了的話，晚來的人一樣可以點進來旁觀這場對局。</p>
         <p>每回合有 45 秒限時，超時系統會自動幫你出（跟機器人一樣的簡單邏輯），遊戲才不會卡住。</p>
-        <p>結束後依名次拿積分（第一名 3 分／第二名 2 分／第三名 1 分／第四名 0 分），輸入「大老二 排行」查看群組排行榜。</p>
+        <p>結束後依名次拿積分（第一名 3 分／第二名 2 分／第三名 1 分／最後一名 0 分），輸入「大老二 排行」查看群組排行榜。</p>
         <button id="tutorial-close" class="tutorial-close">開始對戰！</button>
       </div>
     </div>

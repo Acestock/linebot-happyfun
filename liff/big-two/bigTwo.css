@@ -180,6 +180,13 @@ main {
   color: var(--text);
 }
 
+.create-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* ---------- 大廳 ---------- */
 
 .lobby-screen {
@@ -258,6 +265,24 @@ main {
   font-size: 0.9rem;
 }
 
+.spectator-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 4px 0 0;
+}
+
+.spectator-badge {
+  align-self: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.2);
+  color: var(--gold);
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin: 0;
+}
+
 /* ---------- 牌桌 ---------- */
 
 .table-screen {
@@ -273,6 +298,7 @@ main {
   display: flex;
 }
 
+/* grid-template-columns 依實際座位數（3 或 4）由 JS 動態設定，這裡只給預設值 */
 .seat-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -435,7 +461,6 @@ main {
 
 .hand-area {
   width: 100%;
-  display: flex;
   gap: 4px;
   flex-wrap: wrap;
   justify-content: center;
@@ -444,6 +469,12 @@ main {
   border-radius: 14px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   min-height: 76px;
+}
+
+/* [hidden] 元素預設是 display:none，author CSS 若對同一個選擇器又設了 display 會蓋過
+   UA 的 [hidden] 規則，導致元素永遠顯示——用 :not([hidden]) 包住才不會讓 hidden 失效。 */
+.hand-area:not([hidden]) {
+  display: flex;
 }
 
 .card {
@@ -489,10 +520,13 @@ button.card.selected {
 }
 
 .action-row {
-  display: flex;
   gap: 12px;
   width: 100%;
   justify-content: center;
+}
+
+.action-row:not([hidden]) {
+  display: flex;
 }
 
 /* ---------- 結算 ---------- */

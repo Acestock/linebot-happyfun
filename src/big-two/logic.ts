@@ -61,6 +61,23 @@ export function dealHands(deck: CardCode[]): [CardCode[], CardCode[], CardCode[]
   return hands.map(sortHand) as [CardCode[], CardCode[], CardCode[], CardCode[]];
 }
 
+/**
+ * 3 人局：52 張沒辦法平分，先每人發 17 張（發完 51 張），剩下最後一張給手上已經拿到
+ * 梅花 3 的那個人（湊成 18 張）——這樣開局一定是拿最多牌的那個人先出。極少數情況下
+ * 梅花 3 剛好就是那張沒發完的牌，這時候就當作照原本輪發順序繼續發下去，發給下一位。
+ */
+export function dealHandsThreeWay(deck: CardCode[]): [CardCode[], CardCode[], CardCode[]] {
+  const hands: CardCode[][] = [[], [], []];
+  for (let i = 0; i < 51; i++) {
+    hands[i % 3].push(deck[i]);
+  }
+  const leftover = deck[51];
+  const club3HandIndex = hands.findIndex((h) => h.includes(THREE_OF_CLUBS));
+  const targetIndex = club3HandIndex >= 0 ? club3HandIndex : 51 % 3;
+  hands[targetIndex].push(leftover);
+  return hands.map(sortHand) as [CardCode[], CardCode[], CardCode[]];
+}
+
 export function groupByRank(cards: CardCode[]): Map<string, CardCode[]> {
   const map = new Map<string, CardCode[]>();
   for (const c of cards) {
@@ -285,8 +302,9 @@ export function applyPlay(table: TableState, seatIndex: number, cards: CardCode[
   const remainingPlayers = seats.filter((s) => s.finishRank === null);
   const gameOver = remainingPlayers.length <= 1;
   if (gameOver && remainingPlayers.length === 1) {
+    // 最後一名的名次要看這桌總共幾人（3 人局是第 3 名、4 人局是第 4 名），不能寫死。
     const lastSeat = remainingPlayers[0];
-    seats[lastSeat.seatIndex] = { ...lastSeat, finishRank: 4 };
+    seats[lastSeat.seatIndex] = { ...lastSeat, finishRank: seats.length };
   }
 
   const plays = table.currentTrick ? [...table.currentTrick.plays, { seatIndex, cards }] : [{ seatIndex, cards }];

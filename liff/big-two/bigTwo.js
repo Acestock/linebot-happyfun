@@ -19,12 +19,14 @@ const el = {
   toast: document.getElementById("toast"),
 
   noGameScreen: document.getElementById("no-game-screen"),
-  createButton: document.getElementById("create-button"),
+  create3Button: document.getElementById("create-3-button"),
+  create4Button: document.getElementById("create-4-button"),
 
   lobbyScreen: document.getElementById("lobby-screen"),
   lobbySeats: document.getElementById("lobby-seats"),
   joinRow: document.getElementById("join-row"),
   joinButton: document.getElementById("join-button"),
+  lobbySpectatorNote: document.getElementById("lobby-spectator-note"),
   hostControls: document.getElementById("host-controls"),
   botMinus: document.getElementById("bot-minus"),
   botPlus: document.getElementById("bot-plus"),
@@ -33,6 +35,7 @@ const el = {
   waitingText: document.getElementById("waiting-text"),
 
   tableScreen: document.getElementById("table-screen"),
+  spectatorBadge: document.getElementById("spectator-badge"),
   seatStrip: document.getElementById("seat-strip"),
   timerBar: document.getElementById("timer-bar"),
   timerFill: document.getElementById("timer-fill"),
@@ -40,6 +43,8 @@ const el = {
   trickLabel: document.getElementById("trick-label"),
   trickPlays: document.getElementById("trick-plays"),
   handArea: document.getElementById("hand-area"),
+  spectatorHandNote: document.getElementById("spectator-hand-note"),
+  actionRow: document.getElementById("action-row"),
   playButton: document.getElementById("play-button"),
   passButton: document.getElementById("pass-button"),
 
@@ -168,10 +173,11 @@ function renderLobby(game) {
   const iAmSeated = game.mySeatIndex !== null;
   const lobbyFull = game.seats.every((s) => s.displayName !== null);
   el.joinRow.hidden = iAmSeated || lobbyFull;
+  el.lobbySpectatorNote.hidden = iAmSeated || !lobbyFull;
 
   el.hostControls.hidden = !game.isHost;
   el.botCount.textContent = game.botCount;
-  el.waitingText.hidden = game.isHost;
+  el.waitingText.hidden = game.isHost || (!iAmSeated && lobbyFull);
 }
 
 /**
@@ -214,7 +220,10 @@ function renderTrick(game, mine) {
 }
 
 function renderTable(game) {
+  const isSpectator = game.mySeatIndex === null;
+
   el.seatStrip.innerHTML = "";
+  el.seatStrip.style.gridTemplateColumns = `repeat(${game.seats.length}, 1fr)`;
   game.seats.forEach((seat) => {
     const chip = document.createElement("div");
     chip.className = "seat-chip";
@@ -224,6 +233,8 @@ function renderTable(game) {
     el.seatStrip.appendChild(chip);
   });
 
+  el.spectatorBadge.hidden = !isSpectator;
+
   const mine = isMyTurn();
   const turnSeat = game.seats.find((s) => s.seatIndex === game.currentTurnSeat);
   el.turnBanner.textContent = mine ? "🎯 輪到你了！" : `等待 ${turnSeat ? seatLabel(turnSeat) : "…"} 出牌`;
@@ -232,6 +243,9 @@ function renderTable(game) {
   renderTrick(game, mine);
   renderHand(game);
 
+  el.handArea.hidden = isSpectator;
+  el.spectatorHandNote.hidden = !isSpectator;
+  el.actionRow.hidden = isSpectator;
   el.passButton.hidden = !game.currentTrick;
   el.playButton.disabled = !mine || state.selected.size === 0;
   el.passButton.disabled = !mine;
@@ -490,7 +504,8 @@ async function init() {
   startPolling();
 }
 
-el.createButton.addEventListener("click", () => postAction("create"));
+el.create3Button.addEventListener("click", () => postAction("create", { seatCount: 3 }));
+el.create4Button.addEventListener("click", () => postAction("create", { seatCount: 4 }));
 el.joinButton.addEventListener("click", () => postAction("join"));
 el.botMinus.addEventListener("click", () => adjustBotCount(-1));
 el.botPlus.addEventListener("click", () => adjustBotCount(1));

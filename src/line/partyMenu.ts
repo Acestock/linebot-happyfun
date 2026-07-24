@@ -222,7 +222,7 @@ function gameRow(game: GameDefinition, index: number) {
  * （已經知道是哪個群組）夾帶進 LIFF 網址的 query string，LIFF 頁面載入後改成從網址
  * 讀取，而不是依賴 liff.getContext().groupId。
  */
-function liffUrlWithGroupId(liffId: string, lineGroupId: string): string {
+export function liffUrlWithGroupId(liffId: string, lineGroupId: string): string {
   return `https://liff.line.me/${liffId}?groupId=${encodeURIComponent(lineGroupId)}`;
 }
 

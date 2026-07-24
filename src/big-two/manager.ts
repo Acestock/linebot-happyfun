@@ -6,6 +6,7 @@ import {
   applyPlay,
   createShuffledDeck,
   dealHands,
+  dealHandsThreeWay,
   identifyCombo,
   THREE_OF_CLUBS,
   type CardCode,
@@ -31,7 +32,8 @@ export interface MemberIdentity {
   displayName: string | null;
 }
 
-const TOTAL_SEATS = 4;
+export const VALID_SEAT_COUNTS = [3, 4] as const;
+export type SeatCount = (typeof VALID_SEAT_COUNTS)[number];
 const TURN_TIME_LIMIT_SECONDS = 45;
 const BOT_NAMES = ["電腦小明", "電腦小華", "電腦阿凱"];
 const POINTS_BY_RANK: Record<number, number> = { 1: 3, 2: 2, 3: 1, 4: 0 };
@@ -272,17 +274,23 @@ async function advanceBotTurns(game: GameWithSeats): Promise<GameWithSeats> {
 
 export type CreateGameResult = { ok: true; state: StateView } | { ok: false; error: "game_in_progress" };
 
-export async function createGame(groupId: string, host: MemberIdentity): Promise<CreateGameResult> {
+export async function createGame(
+  groupId: string,
+  host: MemberIdentity,
+  seatCount: SeatCount = 4,
+): Promise<CreateGameResult> {
   const active = await findActiveGame(groupId);
   if (active) return { ok: false, error: "game_in_progress" };
+
+  const seatSeeds = Array.from({ length: seatCount }, (_, seatIndex) =>
+    seatIndex === 0 ? { seatIndex, memberId: host.id } : { seatIndex },
+  );
 
   const game = await prisma.bigTwoGame.create({
     data: {
       groupId,
       hostMemberId: host.id,
-      seats: {
-        create: [{ seatIndex: 0, memberId: host.id }, { seatIndex: 1 }, { seatIndex: 2 }, { seatIndex: 3 }],
-      },
+      seats: { create: seatSeeds },
     },
     include: GAME_INCLUDE,
   });
@@ -315,7 +323,7 @@ export async function setBotCount(groupId: string, member: MemberIdentity, botCo
   if (!game || game.phase !== "LOBBY") return { ok: false, error: "no_lobby" };
   if (game.hostMemberId !== member.id) return { ok: false, error: "not_host" };
 
-  const clamped = Math.max(0, Math.min(TOTAL_SEATS - 1, Math.round(botCount)));
+  const clamped = Math.max(0, Math.min(game.seats.length - 1, Math.round(botCount)));
   await prisma.bigTwoGame.update({ where: { id: game.id }, data: { botCount: clamped } });
   const updated = await findActiveGame(groupId);
   return { ok: true, state: { game: toGameView(updated!, member) } };
@@ -323,13 +331,17 @@ export async function setBotCount(groupId: string, member: MemberIdentity, botCo
 
 export type StartGameResult = { ok: true; state: StateView } | { ok: false; error: "no_lobby" | "not_host" };
 
-/** 開始遊戲：不管 botCount 設定多少，一律把還空著的座位全部補成機器人，確保湊滿 4 人。 */
+/**
+ * 開始遊戲：不管 botCount 設定多少，一律把還空著的座位全部補成機器人，確保湊滿這桌設定
+ * 的人數。3 人局的牌沒辦法平分（52 張／3），多的那一張直接發給拿到梅花 3 的人。
+ */
 export async function startGame(groupId: string, member: MemberIdentity): Promise<StartGameResult> {
   const game = await findActiveGame(groupId);
   if (!game || game.phase !== "LOBBY") return { ok: false, error: "no_lobby" };
   if (game.hostMemberId !== member.id) return { ok: false, error: "not_host" };
 
-  const hands = dealHands(createShuffledDeck());
+  const deck = createShuffledDeck();
+  const hands: CardCode[][] = game.seats.length === 3 ? dealHandsThreeWay(deck) : dealHands(deck);
   let botNameIndex = 0;
 
   const seatUpdates = game.seats.map((seat) => {

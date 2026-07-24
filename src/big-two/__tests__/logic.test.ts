@@ -7,6 +7,7 @@ import {
   comboBeats,
   createShuffledDeck,
   dealHands,
+  dealHandsThreeWay,
   identifyCombo,
   nextActiveSeat,
   THREE_OF_CLUBS,
@@ -39,6 +40,36 @@ describe("dealHands", () => {
     }
     const union = new Set(hands.flat());
     expect(union.size).toBe(52);
+  });
+});
+
+describe("dealHandsThreeWay", () => {
+  it("splits 52 cards into 17/17/18 with no overlap, giving the extra card to whoever holds the three of clubs", () => {
+    const deck = createShuffledDeck();
+    const hands = dealHandsThreeWay(deck);
+    expect(hands).toHaveLength(3);
+
+    const union = new Set(hands.flat());
+    expect(union.size).toBe(52);
+
+    const sizes = hands.map((h) => h.length).sort((a, b) => a - b);
+    expect(sizes).toEqual([17, 17, 18]);
+
+    const club3Hand = hands.find((h) => h.includes(THREE_OF_CLUBS))!;
+    expect(club3Hand.length).toBe(18);
+  });
+
+  it("still deals a clean 17/17/18 split when the three of clubs happens to be the leftover card", () => {
+    // 把梅花 3 硬塞到牌堆最後一張（模擬它剛好是沒發完的那張），確認還是正確落袋、不會憑空消失。
+    const rest = buildDeck().filter((c) => c !== THREE_OF_CLUBS);
+    const deck = [...rest, THREE_OF_CLUBS];
+    const hands = dealHandsThreeWay(deck);
+
+    const union = new Set(hands.flat());
+    expect(union.size).toBe(52);
+    const sizes = hands.map((h) => h.length).sort((a, b) => a - b);
+    expect(sizes).toEqual([17, 17, 18]);
+    expect(hands.some((h) => h.includes(THREE_OF_CLUBS))).toBe(true);
   });
 });
 
@@ -318,5 +349,21 @@ describe("applyPlay / applyPass / nextActiveSeat", () => {
     const seat3 = outcome.table.seats.find((s) => s.seatIndex === 3);
     expect(seat0?.finishRank).toBe(3);
     expect(seat3?.finishRank).toBe(4);
+  });
+
+  it("auto-assigns last place as rank 3 (not a hardcoded 4) in a 3-seat table", () => {
+    const seats: Seat[] = [
+      { seatIndex: 0, hand: ["3D"], finishRank: null },
+      { seatIndex: 1, hand: [], finishRank: 1 },
+      { seatIndex: 2, hand: ["9D"], finishRank: null },
+    ];
+    const table: TableState = { seats, currentTurnSeat: 0, currentTrick: null, passedSeats: [], isFirstTrickOfGame: false };
+    const outcome = applyPlay(table, 0, ["3D"]);
+    if (outcome.type !== "played") throw new Error("expected played");
+    expect(outcome.gameOver).toBe(true);
+    const seat0 = outcome.table.seats.find((s) => s.seatIndex === 0);
+    const seat2 = outcome.table.seats.find((s) => s.seatIndex === 2);
+    expect(seat0?.finishRank).toBe(2);
+    expect(seat2?.finishRank).toBe(3);
   });
 });

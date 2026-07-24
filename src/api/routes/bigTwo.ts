@@ -13,8 +13,13 @@ import {
   playCards,
   setBotCount,
   startGame,
+  VALID_SEAT_COUNTS,
+  type SeatCount,
 } from "../../big-two/manager";
 import type { CardCode } from "../../big-two/logic";
+import { buildGameInviteCard } from "../../big-two/messages";
+import { liffUrlWithGroupId } from "../../line/partyMenu";
+import { pushMessagesWithLimit } from "../../line/push";
 import { logger } from "../../utils/logger";
 
 /**
@@ -77,16 +82,30 @@ export function createBigTwoRouter(): Router {
   router.post(
     "/create",
     asyncHandler(async (req, res) => {
-      const { idToken, groupId } = req.body ?? {};
+      const { idToken, groupId, seatCount } = req.body ?? {};
+      const resolvedSeatCount: SeatCount = VALID_SEAT_COUNTS.includes(seatCount) ? seatCount : 4;
+
       const resolved = await resolveMember(idToken, groupId, res);
       if (!resolved) return;
 
-      const result = await createGame(resolved.group.id, resolved.member);
+      const result = await createGame(resolved.group.id, resolved.member, resolvedSeatCount);
       if (!result.ok) {
         res.status(409).json({ error: result.error });
         return;
       }
       res.status(200).json(result.state);
+
+      // 開局通知晚一點送、不擋著回應——揪團訊息送失敗（例如超過每小時推播上限、
+      // 機器人被踢出群組）不該讓「開局」這個動作本身失敗。
+      const env = loadEnv();
+      if (env.LIFF_ID_BIG_TWO) {
+        const liffUrl = liffUrlWithGroupId(env.LIFF_ID_BIG_TWO, resolved.group.lineGroupId);
+        const hostName = resolved.member.displayName ?? "神秘玩家";
+        const card = buildGameInviteCard(hostName, resolvedSeatCount, liffUrl);
+        pushMessagesWithLimit(resolved.group.lineGroupId, [card]).catch((err) => {
+          logger.warn({ err, groupId: resolved.group.id }, "failed to push big-two game invite");
+        });
+      }
     }),
   );
 

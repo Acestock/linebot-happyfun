@@ -135,3 +135,39 @@ export function buildAllTimeTopThreeCard(entries: AllTimeEntry[]): messagingApi.
     contents: bubble as unknown as messagingApi.FlexBubble,
   };
 }
+
+/** 開局時推播到群組的邀請卡片，通知大家點開 LIFF 加入或旁觀。 */
+export function buildGameInviteCard(hostName: string, seatCount: number, liffUrl: string): messagingApi.Message {
+  const bubble: FlexBox = {
+    type: "bubble",
+    size: "mega",
+    header: headerBox("🃏 大老二開局囉！", `${hostName} 揪了一桌 ${seatCount} 人局`),
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      paddingAll: "16px",
+      contents: [
+        {
+          type: "text",
+          text: "還缺人手，點下面的按鈕加入戰局！座位滿了的話也可以進去旁觀這場對局。",
+          size: "sm",
+          color: "#333333",
+          wrap: true,
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "12px",
+      contents: [{ type: "button", style: "primary", height: "sm", color: PRIMARY, action: { type: "uri", label: "🃏 點我加入／旁觀", uri: liffUrl } }],
+    },
+  };
+
+  return {
+    type: "flex",
+    altText: `🃏 ${hostName} 揪了一桌大老二，點我加入！`,
+    contents: bubble as unknown as messagingApi.FlexBubble,
+  };
+}
