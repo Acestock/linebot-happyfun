@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { chooseBotMove } from "../botStrategy";
-import { comboBeats, identifyCombo, THREE_OF_DIAMONDS } from "../logic";
+import { comboBeats, identifyCombo, THREE_OF_CLUBS } from "../logic";
 
 describe("chooseBotMove — leading", () => {
-  it("leads with the three of diamonds on the first play of the game", () => {
-    const hand = ["3D", "5C", "9H", "KS"];
+  it("leads with the three of clubs on the first play of the game", () => {
+    const hand = ["3C", "5D", "9H", "KS"];
     const move = chooseBotMove(hand, null, true);
-    expect(move).toEqual({ action: "play", cards: [THREE_OF_DIAMONDS] });
+    expect(move).toEqual({ action: "play", cards: [THREE_OF_CLUBS] });
   });
 
   it("leads with the lowest single card otherwise", () => {

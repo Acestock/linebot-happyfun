@@ -12,7 +12,7 @@ export type CardCode = string;
 const SUIT_ORDER: Suit[] = ["D", "C", "H", "S"]; // 花色排序（小到大），只有單張比較時當作同點數的 tiebreak
 export const RANK_ORDER = ["3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A", "2"]; // 點數排序（小到大）
 
-export const THREE_OF_DIAMONDS: CardCode = "3D";
+export const THREE_OF_CLUBS: CardCode = "3C";
 
 function rankIndex(code: CardCode): number {
   return RANK_ORDER.indexOf(code[0]);
@@ -189,8 +189,8 @@ export function validatePlay(
     return { ok: false, reason: "not a valid combo shape" };
   }
 
-  if (isFirstTrickOfGame && !currentTrickCombo && !combo.cards.includes(THREE_OF_DIAMONDS)) {
-    return { ok: false, reason: "first play of the game must include the three of diamonds" };
+  if (isFirstTrickOfGame && !currentTrickCombo && !combo.cards.includes(THREE_OF_CLUBS)) {
+    return { ok: false, reason: "first play of the game must include the three of clubs" };
   }
 
   if (currentTrickCombo && !comboBeats(combo, currentTrickCombo)) {
@@ -206,14 +206,24 @@ export interface Seat {
   finishRank: number | null;
 }
 
+export interface TrickPlay {
+  seatIndex: number;
+  cards: CardCode[];
+}
+
 /**
  * 純邏輯運算用的最小牌桌狀態切片，跟 Prisma 的 BigTwoGame/BigTwoSeat 脫鉤——
  * manager.ts 負責在這個型別跟資料庫列之間轉換。
+ *
+ * currentTrick 記錄「這一輪從有人領牌到現在」所有人出過的牌（依出牌順序），不是只存
+ * 最後一手——前端要把整輪出過的牌攤在桌上讓玩家看得到（例如連續兩隻機器人接力出牌時，
+ * 兩手都要看得到，不能只看到最後一手），判定「打不打得過」時只需要看 plays 陣列最後
+ * 一筆（目前檯面上最大的那手）。
  */
 export interface TableState {
   seats: Seat[]; // 固定長度 4，依 seatIndex 排序
   currentTurnSeat: number;
-  currentTrick: { seatIndex: number; cards: CardCode[] } | null;
+  currentTrick: { plays: TrickPlay[] } | null;
   passCount: number;
   isFirstTrickOfGame: boolean;
 }
@@ -237,7 +247,8 @@ export function applyPlay(table: TableState, seatIndex: number, cards: CardCode[
   }
 
   const seat = table.seats[seatIndex];
-  const currentCombo = table.currentTrick ? identifyCombo(table.currentTrick.cards) : null;
+  const lastPlay = table.currentTrick ? table.currentTrick.plays[table.currentTrick.plays.length - 1] : null;
+  const currentCombo = lastPlay ? identifyCombo(lastPlay.cards) : null;
   const validation = validatePlay(seat.hand, cards, currentCombo, table.isFirstTrickOfGame);
   if (!validation.ok) {
     return { type: "invalid", reason: validation.reason ?? "invalid play" };
@@ -261,12 +272,14 @@ export function applyPlay(table: TableState, seatIndex: number, cards: CardCode[
     seats[lastSeat.seatIndex] = { ...lastSeat, finishRank: 4 };
   }
 
+  const plays = table.currentTrick ? [...table.currentTrick.plays, { seatIndex, cards }] : [{ seatIndex, cards }];
+
   return {
     type: "played",
     table: {
       seats,
       currentTurnSeat: gameOver ? seatIndex : nextActiveSeat(seats, seatIndex),
-      currentTrick: { seatIndex, cards },
+      currentTrick: { plays },
       passCount: 0,
       isFirstTrickOfGame: false,
     },

@@ -381,12 +381,56 @@ main {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.trick-cards {
+/* 這一輪從有人領牌到現在，所有人依序出過的牌都攤在這裡（不是只有最後一手），
+   直排列出每一手是誰出的，最後一手（目前檯面上最大的）特別標示出來。 */
+.trick-plays {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 52px;
+}
+
+.trick-play {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.trick-play.current-best {
+  background: rgba(212, 175, 55, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.5);
+}
+
+.trick-play-name {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.85);
+  min-width: 3.5em;
+}
+
+.trick-play-cards {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  justify-content: center;
-  min-height: 52px;
+}
+
+.trick-play.just-played {
+  animation: trick-play-in 0.3s ease;
+}
+
+@keyframes trick-play-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .hand-area {

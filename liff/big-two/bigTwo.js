@@ -38,7 +38,7 @@ const el = {
   timerFill: document.getElementById("timer-fill"),
   turnBanner: document.getElementById("turn-banner"),
   trickLabel: document.getElementById("trick-label"),
-  trickCards: document.getElementById("trick-cards"),
+  trickPlays: document.getElementById("trick-plays"),
   handArea: document.getElementById("hand-area"),
   playButton: document.getElementById("play-button"),
   passButton: document.getElementById("pass-button"),
@@ -79,6 +79,7 @@ const state = {
   acting: false,
   pollHandle: null,
   turnTimerHandle: null,
+  knownTrickPlayCount: 0, // 這一輪已經畫過幾手，只有新增的那幾手才會有進場動畫
 };
 
 function hideAll(elements) {
@@ -173,6 +174,45 @@ function renderLobby(game) {
   el.waitingText.hidden = game.isHost;
 }
 
+/**
+ * currentTrick.plays 是「這一輪從有人領牌到現在」所有人依序出過的牌，不是只有最後一手——
+ * 連續兩隻機器人接力出牌時，兩手都要攤在桌上，不能只看到最後一隻機器人出的牌。
+ * state.knownTrickPlayCount 記著上次畫面畫到第幾手，只有新增的那幾手才會有進場動畫，
+ * 避免每次輪詢（就算牌桌沒變化）都讓整排卡片重新彈跳一次。
+ */
+function renderTrick(game, mine) {
+  if (!game.currentTrick) {
+    el.trickLabel.textContent = mine ? "由你自由開牌" : "等待重新開牌";
+    el.trickPlays.innerHTML = "";
+    state.knownTrickPlayCount = 0;
+    return;
+  }
+
+  const plays = game.currentTrick.plays;
+  el.trickLabel.textContent = "本輪出牌";
+  el.trickPlays.innerHTML = "";
+  plays.forEach((play, index) => {
+    const seat = game.seats.find((s) => s.seatIndex === play.seatIndex);
+    const row = document.createElement("div");
+    row.className = "trick-play";
+    if (index === plays.length - 1) row.classList.add("current-best");
+    if (index >= state.knownTrickPlayCount) row.classList.add("just-played");
+
+    const nameEl = document.createElement("span");
+    nameEl.className = "trick-play-name";
+    nameEl.textContent = seat ? seatLabel(seat) : "";
+
+    const cardsEl = document.createElement("div");
+    cardsEl.className = "trick-play-cards";
+    play.cards.forEach((code) => cardsEl.appendChild(renderCardEl(code, false)));
+
+    row.appendChild(nameEl);
+    row.appendChild(cardsEl);
+    el.trickPlays.appendChild(row);
+  });
+  state.knownTrickPlayCount = plays.length;
+}
+
 function renderTable(game) {
   el.seatStrip.innerHTML = "";
   game.seats.forEach((seat) => {
@@ -189,16 +229,7 @@ function renderTable(game) {
   el.turnBanner.textContent = mine ? "🎯 輪到你了！" : `等待 ${turnSeat ? seatLabel(turnSeat) : "…"} 出牌`;
   el.turnBanner.classList.toggle("my-turn", mine);
 
-  if (game.currentTrick) {
-    const leader = game.seats.find((s) => s.seatIndex === game.currentTrick.seatIndex);
-    el.trickLabel.textContent = `${leader ? seatLabel(leader) : ""} 出的牌`;
-    el.trickCards.innerHTML = "";
-    game.currentTrick.cards.forEach((code) => el.trickCards.appendChild(renderCardEl(code, false)));
-  } else {
-    el.trickLabel.textContent = mine ? "由你自由開牌" : "等待重新開牌";
-    el.trickCards.innerHTML = "";
-  }
-
+  renderTrick(game, mine);
   renderHand(game);
 
   el.passButton.hidden = !game.currentTrick;

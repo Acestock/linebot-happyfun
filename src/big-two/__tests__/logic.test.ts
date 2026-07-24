@@ -9,7 +9,7 @@ import {
   dealHands,
   identifyCombo,
   nextActiveSeat,
-  THREE_OF_DIAMONDS,
+  THREE_OF_CLUBS,
   type Seat,
   type TableState,
   validatePlay,
@@ -139,23 +139,23 @@ describe("comboBeats / combosComparable", () => {
 });
 
 describe("validatePlay", () => {
-  const hand = ["3D", "4D", "5D", "9C", "9H"];
+  const hand = ["3D", "3C", "4D", "5D", "9H"];
 
   it("rejects cards not in hand", () => {
     expect(validatePlay(hand, ["2S"], null, false).ok).toBe(false);
   });
 
   it("rejects an invalid combo shape", () => {
-    expect(validatePlay(hand, ["3D", "9C"], null, false).ok).toBe(false);
+    expect(validatePlay(hand, ["3D", "9H"], null, false).ok).toBe(false);
   });
 
-  it("requires the three of diamonds on the first play of the game", () => {
-    const result = validatePlay(hand, ["9C", "9H"], null, true);
+  it("requires the three of clubs on the first play of the game", () => {
+    const result = validatePlay(hand, ["4D", "5D"], null, true);
     expect(result.ok).toBe(false);
   });
 
-  it("accepts the three of diamonds as a valid opening play", () => {
-    const result = validatePlay(hand, [THREE_OF_DIAMONDS], null, true);
+  it("accepts the three of clubs as a valid opening play", () => {
+    const result = validatePlay(hand, [THREE_OF_CLUBS], null, true);
     expect(result.ok).toBe(true);
   });
 
@@ -179,13 +179,13 @@ function makeTable(hands: string[][]): TableState {
 
 describe("applyPlay / applyPass / nextActiveSeat", () => {
   it("advances turn to the next seat and clears isFirstTrickOfGame after a play", () => {
-    const table = makeTable([["3D", "4D"], ["5D", "6D"], ["7D", "8D"], ["9D", "TD"]]);
-    const outcome = applyPlay(table, 0, ["3D"]);
+    const table = makeTable([["3C", "4D"], ["5D", "6D"], ["7D", "8D"], ["9D", "TD"]]);
+    const outcome = applyPlay(table, 0, ["3C"]);
     expect(outcome.type).toBe("played");
     if (outcome.type !== "played") throw new Error("expected played");
     expect(outcome.table.currentTurnSeat).toBe(1);
     expect(outcome.table.isFirstTrickOfGame).toBe(false);
-    expect(outcome.table.currentTrick).toEqual({ seatIndex: 0, cards: ["3D"] });
+    expect(outcome.table.currentTrick).toEqual({ plays: [{ seatIndex: 0, cards: ["3C"] }] });
   });
 
   it("rejects a play when it isn't that seat's turn", () => {
@@ -195,8 +195,8 @@ describe("applyPlay / applyPass / nextActiveSeat", () => {
   });
 
   it("clears the trick after all other active players pass in turn", () => {
-    let table = makeTable([["3D", "4D"], ["5D"], ["7D"], ["9D"]]);
-    const played = applyPlay(table, 0, ["3D"]);
+    let table = makeTable([["3C", "4D"], ["5D"], ["7D"], ["9D"]]);
+    const played = applyPlay(table, 0, ["3C"]);
     if (played.type !== "played") throw new Error("expected played");
     table = played.table;
 
@@ -221,6 +221,32 @@ describe("applyPlay / applyPass / nextActiveSeat", () => {
     const table = makeTable([["3D"], ["5D"], ["7D"], ["9D"]]);
     const outcome = applyPass(table, 0);
     expect(outcome.type).toBe("invalid");
+  });
+
+  it("keeps every play made in the current trick, not just the most recent one", () => {
+    let table = makeTable([["3C", "4D"], ["8H", "6D"], ["TC", "7D"], ["KS", "9D"]]);
+
+    const play0 = applyPlay(table, 0, ["3C"]);
+    if (play0.type !== "played") throw new Error("expected played");
+    table = play0.table;
+
+    const play1 = applyPlay(table, 1, ["8H"]);
+    if (play1.type !== "played") throw new Error("expected played");
+    table = play1.table;
+
+    const play2 = applyPlay(table, 2, ["TC"]);
+    if (play2.type !== "played") throw new Error("expected played");
+    table = play2.table;
+
+    // 檯面上要看得到這一輪三個人依序出過的牌，不能只剩最後一手（電腦連續接力出牌時，
+    // 玩家才看得到中間每一手，不會只看到最後一隻機器人出的牌）。
+    expect(table.currentTrick).toEqual({
+      plays: [
+        { seatIndex: 0, cards: ["3C"] },
+        { seatIndex: 1, cards: ["8H"] },
+        { seatIndex: 2, cards: ["TC"] },
+      ],
+    });
   });
 
   it("skips finished seats when advancing turns", () => {

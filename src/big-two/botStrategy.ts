@@ -12,7 +12,7 @@ import {
   groupBySuit,
   identifyCombo,
   sortHand,
-  THREE_OF_DIAMONDS,
+  THREE_OF_CLUBS,
 } from "./logic";
 
 export type BotMove = { action: "play"; cards: CardCode[] } | { action: "pass" };
@@ -98,8 +98,8 @@ function fiveCardCandidates(hand: CardCode[]): CardCode[][] {
  */
 export function chooseBotMove(hand: CardCode[], currentTrick: Combo | null, isFirstTrickOfGame: boolean): BotMove {
   if (!currentTrick) {
-    if (isFirstTrickOfGame && hand.includes(THREE_OF_DIAMONDS)) {
-      return { action: "play", cards: [THREE_OF_DIAMONDS] };
+    if (isFirstTrickOfGame && hand.includes(THREE_OF_CLUBS)) {
+      return { action: "play", cards: [THREE_OF_CLUBS] };
     }
     return { action: "play", cards: [sortHand(hand)[0]] };
   }

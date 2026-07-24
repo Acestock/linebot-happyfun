@@ -7,10 +7,11 @@ import {
   createShuffledDeck,
   dealHands,
   identifyCombo,
-  THREE_OF_DIAMONDS,
+  THREE_OF_CLUBS,
   type CardCode,
   type Seat as LogicSeat,
   type TableState,
+  type TrickPlay,
 } from "./logic";
 
 /**
@@ -78,7 +79,7 @@ export interface GameView {
   isHost: boolean;
   botCount: number;
   currentTurnSeat: number | null;
-  currentTrick: { seatIndex: number; cards: CardCode[] } | null;
+  currentTrick: { plays: TrickPlay[] } | null;
   turnDeadlineAt: string | null;
   seats: SeatView[];
   mySeatIndex: number | null;
@@ -112,7 +113,7 @@ function toGameView(game: GameWithSeats, member: MemberIdentity): GameView {
     isHost: game.hostMemberId === member.id,
     botCount: game.botCount,
     currentTurnSeat: game.currentTurnSeat,
-    currentTrick: (game.currentTrick as { seatIndex: number; cards: CardCode[] } | null) ?? null,
+    currentTrick: (game.currentTrick as { plays: TrickPlay[] } | null) ?? null,
     turnDeadlineAt: game.turnDeadlineAt ? game.turnDeadlineAt.toISOString() : null,
     seats,
     mySeatIndex: seats.find((s) => s.isSelf)?.seatIndex ?? null,
@@ -132,9 +133,9 @@ function toTableState(game: GameWithSeats): TableState {
   return {
     seats,
     currentTurnSeat: game.currentTurnSeat ?? 0,
-    currentTrick: (game.currentTrick as { seatIndex: number; cards: CardCode[] } | null) ?? null,
+    currentTrick: (game.currentTrick as { plays: TrickPlay[] } | null) ?? null,
     passCount: game.passCount,
-    // 52 張都還在手上代表這輪剛發完牌、整場遊戲一手都還沒出過，用來判斷方塊 3 規則。
+    // 52 張都還在手上代表這輪剛發完牌、整場遊戲一手都還沒出過，用來判斷梅花 3 規則。
     isFirstTrickOfGame: totalCardsInHands === 52,
   };
 }
@@ -203,7 +204,7 @@ async function persistTable(game: GameWithSeats, table: TableState): Promise<Gam
         where: { id: game.id },
         data: {
           currentTurnSeat: table.currentTurnSeat,
-          currentTrick: table.currentTrick ?? Prisma.DbNull,
+          currentTrick: (table.currentTrick as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.DbNull,
           passCount: table.passCount,
           turnDeadlineAt: new Date(Date.now() + TURN_TIME_LIMIT_SECONDS * 1000),
         },
@@ -238,7 +239,8 @@ async function advanceBotTurns(game: GameWithSeats): Promise<GameWithSeats> {
     if (!seatRow.isBot && !isOverdueOriginalHuman) break;
 
     const seatState = table.seats.find((s) => s.seatIndex === seatIndex)!;
-    const currentCombo = table.currentTrick ? identifyCombo(table.currentTrick.cards) : null;
+    const lastPlay = table.currentTrick ? table.currentTrick.plays[table.currentTrick.plays.length - 1] : null;
+    const currentCombo = lastPlay ? identifyCombo(lastPlay.cards) : null;
     const move = chooseBotMove(seatState.hand, currentCombo, table.isFirstTrickOfGame);
     const outcome = move.action === "play" ? applyPlay(table, seatIndex, move.cards) : applyPass(table, seatIndex);
     if (outcome.type === "invalid") break; // 防禦性煞車，理論上機器人策略一定合法
@@ -326,7 +328,7 @@ export async function startGame(groupId: string, member: MemberIdentity): Promis
     });
   });
 
-  const startingSeat = game.seats.find((seat) => hands[seat.seatIndex].includes(THREE_OF_DIAMONDS))!.seatIndex;
+  const startingSeat = game.seats.find((seat) => hands[seat.seatIndex].includes(THREE_OF_CLUBS))!.seatIndex;
 
   await prisma.$transaction([
     ...seatUpdates,
