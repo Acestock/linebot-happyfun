@@ -354,7 +354,7 @@ model BigTwoGame {
   botCount        Int         @default(0) @map("bot_count")
   currentTurnSeat Int?        @map("current_turn_seat")
   currentTrick    Json?       @map("current_trick")
-  passCount       Int         @default(0) @map("pass_count")
+  passedSeats     Json        @default("[]") @map("passed_seats")
   turnDeadlineAt  DateTime?   @map("turn_deadline_at")
   createdAt       DateTime    @default(now()) @map("created_at")
   finishedAt      DateTime?   @map("finished_at")

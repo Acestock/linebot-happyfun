@@ -151,7 +151,7 @@ function toTableState(game: GameWithSeats): TableState {
     seats,
     currentTurnSeat: game.currentTurnSeat ?? 0,
     currentTrick: normalizeCurrentTrick(game.currentTrick),
-    passCount: game.passCount,
+    passedSeats: Array.isArray(game.passedSeats) ? (game.passedSeats as number[]) : [],
     // 52 張都還在手上代表這輪剛發完牌、整場遊戲一手都還沒出過，用來判斷梅花 3 規則。
     isFirstTrickOfGame: totalCardsInHands === 52,
   };
@@ -212,7 +212,7 @@ async function persistTable(game: GameWithSeats, table: TableState): Promise<Gam
           phase: "FINISHED",
           currentTurnSeat: null,
           currentTrick: Prisma.DbNull,
-          passCount: 0,
+          passedSeats: [] as unknown as Prisma.InputJsonValue,
           turnDeadlineAt: null,
           finishedAt: new Date(),
         },
@@ -222,7 +222,7 @@ async function persistTable(game: GameWithSeats, table: TableState): Promise<Gam
         data: {
           currentTurnSeat: table.currentTurnSeat,
           currentTrick: (table.currentTrick as unknown as Prisma.InputJsonValue | undefined) ?? Prisma.DbNull,
-          passCount: table.passCount,
+          passedSeats: table.passedSeats as unknown as Prisma.InputJsonValue,
           turnDeadlineAt: new Date(Date.now() + TURN_TIME_LIMIT_SECONDS * 1000),
         },
       });
@@ -354,7 +354,7 @@ export async function startGame(groupId: string, member: MemberIdentity): Promis
       data: {
         phase: "PLAYING",
         currentTurnSeat: startingSeat,
-        passCount: 0,
+        passedSeats: [] as unknown as Prisma.InputJsonValue,
         turnDeadlineAt: new Date(Date.now() + TURN_TIME_LIMIT_SECONDS * 1000),
       },
     }),

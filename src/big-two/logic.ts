@@ -9,7 +9,8 @@
 export type Suit = "D" | "C" | "H" | "S";
 export type CardCode = string;
 
-const SUIT_ORDER: Suit[] = ["D", "C", "H", "S"]; // 花色排序（小到大），只有單張比較時當作同點數的 tiebreak
+// 花色排序（小到大）：梅花 < 方塊 < 紅心 < 黑桃，只有單張比較時當作同點數的 tiebreak。
+const SUIT_ORDER: Suit[] = ["C", "D", "H", "S"];
 export const RANK_ORDER = ["3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A", "2"]; // 點數排序（小到大）
 
 export const THREE_OF_CLUBS: CardCode = "3C";
@@ -224,7 +225,13 @@ export interface TableState {
   seats: Seat[]; // 固定長度 4，依 seatIndex 排序
   currentTurnSeat: number;
   currentTrick: { plays: TrickPlay[] } | null;
-  passCount: number;
+  /**
+   * 這一輪（currentTrick 還沒清空前）已經 pass 過的座位——大老二規則是「pass 一次就
+   * 退出這一輪，直到清桌前都不能再出牌」，不是「輪到你的時候才臨時決定」。座位順序
+   * 是固定的循環，pass 過的人如果沒被排除在候選名單外，繞一圈回來時反而又會輪到他，
+   * 讓他有機會在同一輪重新出牌，這是不對的。
+   */
+  passedSeats: number[];
   isFirstTrickOfGame: boolean;
 }
 
@@ -237,6 +244,16 @@ export function nextActiveSeat(seats: Seat[], from: number): number {
   for (let step = 1; step <= seats.length; step++) {
     const idx = (from + step) % seats.length;
     if (seats[idx].finishRank === null) return idx;
+  }
+  return from;
+}
+
+/** 跟 nextActiveSeat 一樣，但額外跳過「這一輪已經 pass 過」的座位。 */
+function nextEligibleSeat(seats: Seat[], from: number, passedSeats: number[]): number {
+  const passed = new Set(passedSeats);
+  for (let step = 1; step <= seats.length; step++) {
+    const idx = (from + step) % seats.length;
+    if (seats[idx].finishRank === null && !passed.has(idx)) return idx;
   }
   return from;
 }
@@ -273,14 +290,16 @@ export function applyPlay(table: TableState, seatIndex: number, cards: CardCode[
   }
 
   const plays = table.currentTrick ? [...table.currentTrick.plays, { seatIndex, cards }] : [{ seatIndex, cards }];
+  // 出牌不會讓任何人「取消 pass」——已經 pass 過的人這一輪還是繼續被排除在外。
+  const passedSeats = table.currentTrick ? table.passedSeats : [];
 
   return {
     type: "played",
     table: {
       seats,
-      currentTurnSeat: gameOver ? seatIndex : nextActiveSeat(seats, seatIndex),
+      currentTurnSeat: gameOver ? seatIndex : nextEligibleSeat(seats, seatIndex, passedSeats),
       currentTrick: { plays },
-      passCount: 0,
+      passedSeats,
       isFirstTrickOfGame: false,
     },
     finishedSeat,
@@ -296,17 +315,35 @@ export function applyPass(table: TableState, seatIndex: number): PlayOutcome {
     return { type: "invalid", reason: "cannot pass while leading" };
   }
 
-  const passCount = table.passCount + 1;
-  const activePlayers = table.seats.filter((s) => s.finishRank === null).length;
-  const trickCleared = passCount >= activePlayers - 1;
+  const passedSeats = [...table.passedSeats, seatIndex];
+  const activeSeats = table.seats.filter((s) => s.finishRank === null);
+  const stillIn = activeSeats.filter((s) => !passedSeats.includes(s.seatIndex));
+
+  if (stillIn.length <= 1) {
+    // 除了自己以外，其他還在場上的人都 pass 過了——這一輪結束。贏得這一輪的人自由開下一輪；
+    // 如果那個人剛好已經出完手牌（沒有下一輪可領），就照座位順序輪給下一個還有牌的人。
+    const lastPlayOwnerSeat = table.currentTrick.plays[table.currentTrick.plays.length - 1].seatIndex;
+    const nextLeaderSeat = stillIn.length === 1 ? stillIn[0].seatIndex : nextActiveSeat(table.seats, lastPlayOwnerSeat);
+    return {
+      type: "played",
+      table: {
+        ...table,
+        currentTurnSeat: nextLeaderSeat,
+        currentTrick: null,
+        passedSeats: [],
+        isFirstTrickOfGame: false,
+      },
+      finishedSeat: null,
+      gameOver: false,
+    };
+  }
 
   return {
     type: "played",
     table: {
       ...table,
-      currentTurnSeat: nextActiveSeat(table.seats, seatIndex),
-      currentTrick: trickCleared ? null : table.currentTrick,
-      passCount: trickCleared ? 0 : passCount,
+      currentTurnSeat: nextEligibleSeat(table.seats, seatIndex, passedSeats),
+      passedSeats,
       isFirstTrickOfGame: false,
     },
     finishedSeat: null,
