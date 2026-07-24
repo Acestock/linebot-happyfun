@@ -119,6 +119,24 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 
 **LIFF app 設定要多做一步，但不用整套重來**：一個 LIFF app 只能對應一個固定網址，Wordle 跟 1A2B 沒辦法共用同一個 LIFF app，但兩者可以掛在**同一個** LINE Login channel 底下（該 channel 的 LIFF 分頁可以「Add」加開好幾個 LIFF app）。所以只需要：進到申請 Wordle 時建立的那個 LINE Login channel，在 LIFF 分頁再新增一個 LIFF app（Endpoint URL 填 `https://<你的網域>/liff/one-a-two-b/`，Scope 一樣勾 `openid`），把拿到的 LIFF ID 填進 `LIFF_ID_ONE_A_TWO_B`；`LIFF_CHANNEL_ID` 不用重填，兩個遊戲共用同一個值。完整步驟見 `.env.example` 裡的註解。
 
+## 大老二對戰（LIFF 網頁小遊戲，人機混合即時對戰）
+
+<img src="./docs/screenshots/big-two-liff.png" alt="大老二對戰 LIFF 頁面截圖" width="320" />
+
+> `liff/big-two/` 的真實畫面（假資料展示對戰中的狀態：座位條、倒數計時 bar、檯面上的牌、手牌可點選）。
+
+跟 Wordle／1A2B「一個人打自己的關」完全不同，這是第一個**多人互相對打**的 LIFF 小遊戲：4 人一桌玩經典大老二，人數不夠由機器人自動補位，一個群組同時只能開一團。發起人（房主，開局時自動坐在第 1 位）在等待畫面設定要補幾隻機器人，按下「開始遊戲」後還空著的座位一律自動補滿機器人（不管設定的數字夠不夠），確保湊滿 4 人才開局。
+
+**即時同步用短輪詢，不是 WebSocket**：LIFF 頁面固定每 1.8 秒打一次 `/api/big-two/state`，完全沿用 Wordle/1A2B 既有的「LIFF 打 REST API」模式，沒有引入常駐連線的新基礎建設。手牌的隱私靠伺服器端過濾——`src/big-two/manager.ts` 的 `getStateView()` 回傳的每個座位視圖裡，只有「這是不是你自己的座位」那一格才會帶手牌，其他人的座位只回傳剩幾張牌，不會外流實際牌面。
+
+**機器人回合／真人超時，靠「懶惰推進」而不是排程器**：只要輪到的座位是機器人，`advanceBotTurns()` 會立刻用簡單貪婪策略（`src/big-two/botStrategy.ts`：領牌出最小單張，跟牌找剛好打得過的最小組合，找不到就 Pass，不算牌不留大牌）算出動作並套用，可能連續處理好幾隻機器人，直到輪到真人才停手；因為輪詢間隔只有 1.8 秒，機器人出手對玩家來說幾乎是即時的。真人如果超過 45 秒沒出手（`turnDeadlineAt`），下一次輪詢或任何人送出動作時會偵測到超時，借用同一顆機器人策略幫他頂那一手，遊戲才不會卡死——這跟 Wordle 的「懶惰結算」是同一種設計精神。
+
+牌型判斷、比大小、方塊 3 開局規則、回合推進都是純函式（`src/big-two/logic.ts`），資料庫只存座位的手牌／名次，牌局狀態機（`BigTwoGame`／`BigTwoSeat`）完全不進 `src/games/engine/`（那套引擎假設單一共用狀態、無座位順序、文字指令驅動，跟需要「座位順序 + 每人私有手牌 + 多人同時看牌桌」的大老二架構完全不合），是繼小聚活動主持人、Wordle/1A2B 之後第三個獨立的平行資料模型。
+
+排行榜不算牌計分，改成**依名次拿積分**：第一名 3 分、第二名 2 分、第三名 1 分、第四名 0 分，每天累積，輸入「大老二 排行」查看今天的排行榜卡片，一樣有「🏆 歷史最高分 TOP 3」按鈕可以切換看不限日期、單日積分最高的史上前三名（`src/big-two/manager.ts` 的 `getLeaderboard`/`getAllTimeTopThree`，`src/big-two/messages.ts` 的 Flex 卡片）。
+
+**LIFF app 設定**：一樣掛在申請 Wordle 時建立的那個 LINE Login channel 底下，LIFF 分頁再 Add 一個新的 LIFF app（Endpoint URL 填 `https://<你的網域>/liff/big-two/`，Scope 勾 `openid`），把拿到的 LIFF ID 填進 `LIFF_ID_BIG_TWO`；`LIFF_CHANNEL_ID` 一樣不用重填。完整步驟見 `.env.example` 裡的註解。
+
 下面第 1 節是**完整、不需要在自己電腦上跑程式**的上線流程：建一個全新的 LINE 官方帳號，把這個 repo 直接部署到 Railway，兩邊接起來就能在真實 LINE 群組裡試用。本機開發（要改程式碼、加新功能時才需要）在第 4 節。
 
 ---
@@ -289,11 +307,13 @@ src/
 ├── meetup/             # 小聚活動主持人（狀態機、Flex 卡片、排程）
 ├── wordle/             # 每日 Wordle（純邏輯、DB orchestration）
 ├── one-a-two-b/        # 每日 1A2B（純邏輯、DB orchestration，跟 wordle/ 同架構、互不依賴）
-└── api/routes/          # 給 LIFF 用的 REST API（/api/ping、/api/wordle/*、/api/one-a-two-b/*）
+├── big-two/            # 大老二人機混合對戰（牌型邏輯、機器人策略、DB orchestration）
+└── api/routes/          # 給 LIFF 用的 REST API（/api/ping、/api/wordle/*、/api/one-a-two-b/*、/api/big-two/*）
 prisma/schema.prisma      # 資料庫 schema
 liff/                      # LIFF 前端（純 HTML/CSS/JS，不在 TS build 範圍內，見 tsconfig.json exclude）
 ├── index.html / wordle.css / wordle.js       # 每日 Wordle
-└── one-a-two-b/                              # 每日 1A2B（獨立子目錄，對應獨立的 LIFF app）
+├── one-a-two-b/                              # 每日 1A2B（獨立子目錄，對應獨立的 LIFF app）
+└── big-two/                                  # 大老二對戰（獨立子目錄，對應獨立的 LIFF app）
 ```
 
 ### 4.6 本機 / Railway 怎麼切換

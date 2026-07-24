@@ -1,0 +1,253 @@
+import { describe, expect, it } from "vitest";
+import {
+  applyPass,
+  applyPlay,
+  buildDeck,
+  combosComparable,
+  comboBeats,
+  createShuffledDeck,
+  dealHands,
+  identifyCombo,
+  nextActiveSeat,
+  THREE_OF_DIAMONDS,
+  type Seat,
+  type TableState,
+  validatePlay,
+} from "../logic";
+
+describe("buildDeck / createShuffledDeck", () => {
+  it("produces 52 unique cards", () => {
+    const deck = buildDeck();
+    expect(deck.length).toBe(52);
+    expect(new Set(deck).size).toBe(52);
+  });
+
+  it("shuffles without dropping or duplicating cards", () => {
+    const shuffled = createShuffledDeck();
+    expect(shuffled.length).toBe(52);
+    expect(new Set(shuffled)).toEqual(new Set(buildDeck()));
+  });
+});
+
+describe("dealHands", () => {
+  it("splits the deck into four 13-card sorted hands with no overlap", () => {
+    const deck = createShuffledDeck();
+    const hands = dealHands(deck);
+    expect(hands).toHaveLength(4);
+    for (const hand of hands) {
+      expect(hand.length).toBe(13);
+    }
+    const union = new Set(hands.flat());
+    expect(union.size).toBe(52);
+  });
+});
+
+describe("identifyCombo", () => {
+  it("identifies a single card", () => {
+    expect(identifyCombo(["5D"])?.shape).toBe("single");
+  });
+
+  it("identifies a pair (same rank)", () => {
+    expect(identifyCombo(["5D", "5C"])?.shape).toBe("pair");
+  });
+
+  it("rejects a 'pair' of different ranks", () => {
+    expect(identifyCombo(["5D", "6C"])).toBeNull();
+  });
+
+  it("identifies a triple", () => {
+    expect(identifyCombo(["5D", "5C", "5H"])?.shape).toBe("triple");
+  });
+
+  it("rejects duplicate cards", () => {
+    expect(identifyCombo(["5D", "5D"])).toBeNull();
+  });
+
+  it("identifies a straight (3-4-5-6-7)", () => {
+    expect(identifyCombo(["3D", "4C", "5H", "6S", "7D"])?.shape).toBe("straight");
+  });
+
+  it("rejects a straight that includes rank 2", () => {
+    expect(identifyCombo(["JD", "QC", "KH", "AS", "2D"])).toBeNull();
+  });
+
+  it("identifies a flush (same suit, not consecutive)", () => {
+    expect(identifyCombo(["3D", "5D", "7D", "9D", "KD"])?.shape).toBe("flush");
+  });
+
+  it("identifies a full house (3+2)", () => {
+    expect(identifyCombo(["5D", "5C", "5H", "9D", "9C"])?.shape).toBe("fullhouse");
+  });
+
+  it("identifies four of a kind + kicker as quad", () => {
+    expect(identifyCombo(["5D", "5C", "5H", "5S", "9C"])?.shape).toBe("quad");
+  });
+
+  it("identifies a straight flush", () => {
+    expect(identifyCombo(["3D", "4D", "5D", "6D", "7D"])?.shape).toBe("straightflush");
+  });
+
+  it("rejects five cards that don't form any recognized shape", () => {
+    expect(identifyCombo(["3D", "4C", "5H", "9S", "KD"])).toBeNull();
+  });
+
+  it("rejects four cards (no valid 4-card shape)", () => {
+    expect(identifyCombo(["3D", "4C", "5H", "6S"])).toBeNull();
+  });
+});
+
+describe("comboBeats / combosComparable", () => {
+  it("requires matching length for singles/pairs/triples", () => {
+    const single = identifyCombo(["5D"])!;
+    const pair = identifyCombo(["6D", "6C"])!;
+    expect(combosComparable(single, pair)).toBe(false);
+  });
+
+  it("higher single rank beats lower rank", () => {
+    const low = identifyCombo(["5D"])!;
+    const high = identifyCombo(["6D"])!;
+    expect(comboBeats(high, low)).toBe(true);
+    expect(comboBeats(low, high)).toBe(false);
+  });
+
+  it("same rank single: higher suit beats lower suit", () => {
+    const diamond = identifyCombo(["9D"])!;
+    const spade = identifyCombo(["9S"])!;
+    expect(comboBeats(spade, diamond)).toBe(true);
+  });
+
+  it("any 5-card combo can be compared against any other 5-card combo", () => {
+    const straight = identifyCombo(["3D", "4C", "5H", "6S", "7D"])!;
+    const flush = identifyCombo(["3D", "5D", "7D", "9D", "KD"])!;
+    expect(combosComparable(straight, flush)).toBe(true);
+    expect(comboBeats(flush, straight)).toBe(true);
+  });
+
+  it("full house beats flush regardless of individual card ranks", () => {
+    const flush = identifyCombo(["AD", "TD", "8D", "6D", "4D"])!; // 高牌是 A，牌力仍低於葫蘆
+    const fullhouse = identifyCombo(["3D", "3C", "3H", "4D", "4C"])!;
+    expect(comboBeats(fullhouse, flush)).toBe(true);
+  });
+
+  it("quad beats full house, straight flush beats quad", () => {
+    const fullhouse = identifyCombo(["KD", "KC", "KH", "QD", "QC"])!;
+    const quad = identifyCombo(["3D", "3C", "3H", "3S", "4D"])!;
+    const straightflush = identifyCombo(["4D", "5D", "6D", "7D", "8D"])!;
+    expect(comboBeats(quad, fullhouse)).toBe(true);
+    expect(comboBeats(straightflush, quad)).toBe(true);
+  });
+});
+
+describe("validatePlay", () => {
+  const hand = ["3D", "4D", "5D", "9C", "9H"];
+
+  it("rejects cards not in hand", () => {
+    expect(validatePlay(hand, ["2S"], null, false).ok).toBe(false);
+  });
+
+  it("rejects an invalid combo shape", () => {
+    expect(validatePlay(hand, ["3D", "9C"], null, false).ok).toBe(false);
+  });
+
+  it("requires the three of diamonds on the first play of the game", () => {
+    const result = validatePlay(hand, ["9C", "9H"], null, true);
+    expect(result.ok).toBe(false);
+  });
+
+  it("accepts the three of diamonds as a valid opening play", () => {
+    const result = validatePlay(hand, [THREE_OF_DIAMONDS], null, true);
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects a play that doesn't beat the current trick", () => {
+    const currentTrick = identifyCombo(["9S"])!;
+    expect(validatePlay(hand, ["4D"], currentTrick, false).ok).toBe(false);
+  });
+
+  it("accepts a play that beats the current trick", () => {
+    const currentTrick = identifyCombo(["4D"])!;
+    const result = validatePlay(hand, ["5D"], currentTrick, false);
+    expect(result.ok).toBe(true);
+    expect(result.combo?.shape).toBe("single");
+  });
+});
+
+function makeTable(hands: string[][]): TableState {
+  const seats: Seat[] = hands.map((hand, seatIndex) => ({ seatIndex, hand, finishRank: null }));
+  return { seats, currentTurnSeat: 0, currentTrick: null, passCount: 0, isFirstTrickOfGame: true };
+}
+
+describe("applyPlay / applyPass / nextActiveSeat", () => {
+  it("advances turn to the next seat and clears isFirstTrickOfGame after a play", () => {
+    const table = makeTable([["3D", "4D"], ["5D", "6D"], ["7D", "8D"], ["9D", "TD"]]);
+    const outcome = applyPlay(table, 0, ["3D"]);
+    expect(outcome.type).toBe("played");
+    if (outcome.type !== "played") throw new Error("expected played");
+    expect(outcome.table.currentTurnSeat).toBe(1);
+    expect(outcome.table.isFirstTrickOfGame).toBe(false);
+    expect(outcome.table.currentTrick).toEqual({ seatIndex: 0, cards: ["3D"] });
+  });
+
+  it("rejects a play when it isn't that seat's turn", () => {
+    const table = makeTable([["3D"], ["5D"], ["7D"], ["9D"]]);
+    const outcome = applyPlay(table, 1, ["5D"]);
+    expect(outcome.type).toBe("invalid");
+  });
+
+  it("clears the trick after all other active players pass in turn", () => {
+    let table = makeTable([["3D", "4D"], ["5D"], ["7D"], ["9D"]]);
+    const played = applyPlay(table, 0, ["3D"]);
+    if (played.type !== "played") throw new Error("expected played");
+    table = played.table;
+
+    const pass1 = applyPass(table, 1);
+    if (pass1.type !== "played") throw new Error("expected played");
+    expect(pass1.table.currentTrick).not.toBeNull();
+    table = pass1.table;
+
+    const pass2 = applyPass(table, 2);
+    if (pass2.type !== "played") throw new Error("expected played");
+    expect(pass2.table.currentTrick).not.toBeNull();
+    table = pass2.table;
+
+    const pass3 = applyPass(table, 3);
+    if (pass3.type !== "played") throw new Error("expected played");
+    expect(pass3.table.currentTrick).toBeNull();
+    expect(pass3.table.passCount).toBe(0);
+    expect(pass3.table.currentTurnSeat).toBe(0); // 繞回原出牌者
+  });
+
+  it("rejects passing while leading (no current trick)", () => {
+    const table = makeTable([["3D"], ["5D"], ["7D"], ["9D"]]);
+    const outcome = applyPass(table, 0);
+    expect(outcome.type).toBe("invalid");
+  });
+
+  it("skips finished seats when advancing turns", () => {
+    const seats: Seat[] = [
+      { seatIndex: 0, hand: ["3D"], finishRank: null },
+      { seatIndex: 1, hand: [], finishRank: 1 },
+      { seatIndex: 2, hand: ["5D"], finishRank: null },
+      { seatIndex: 3, hand: ["7D"], finishRank: null },
+    ];
+    expect(nextActiveSeat(seats, 0)).toBe(2);
+  });
+
+  it("assigns finish rank when a seat empties its hand, and auto-assigns the last remaining seat", () => {
+    const seats: Seat[] = [
+      { seatIndex: 0, hand: ["3D"], finishRank: null },
+      { seatIndex: 1, hand: [], finishRank: 1 },
+      { seatIndex: 2, hand: [], finishRank: 2 },
+      { seatIndex: 3, hand: ["9D"], finishRank: null },
+    ];
+    const table: TableState = { seats, currentTurnSeat: 0, currentTrick: null, passCount: 0, isFirstTrickOfGame: false };
+    const outcome = applyPlay(table, 0, ["3D"]);
+    if (outcome.type !== "played") throw new Error("expected played");
+    expect(outcome.finishedSeat).toBe(0);
+    expect(outcome.gameOver).toBe(true);
+    const seat0 = outcome.table.seats.find((s) => s.seatIndex === 0);
+    const seat3 = outcome.table.seats.find((s) => s.seatIndex === 3);
+    expect(seat0?.finishRank).toBe(3);
+    expect(seat3?.finishRank).toBe(4);
+  });
+});

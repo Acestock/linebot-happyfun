@@ -49,6 +49,8 @@ const envSchema = z.object({
   // 每日 1A2B 用的 LIFF app ID——每個 LIFF 網頁小遊戲都要在同一個 LINE Login channel
   // 底下各自申請一組（一個 LIFF app 只能對應一個固定網址），但共用同一個 LIFF_CHANNEL_ID
   LIFF_ID_ONE_A_TWO_B: z.string().optional(),
+  // 大老二人機混合對戰用的 LIFF app ID
+  LIFF_ID_BIG_TWO: z.string().optional(),
   // LIFF app 掛載的 Channel ID（數字），驗證 LIFF ID token 時當 client_id 用，同一個
   // LINE Login channel 底下的所有 LIFF app 共用這一個值。
   // 跟 LINE_CHANNEL_SECRET 不同東西，在 LINE Developers Console 的 LIFF 分頁可以找到。

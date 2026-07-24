@@ -24,6 +24,12 @@ import {
   buildLeaderboardCard as buildOneATwoBLeaderboardCard,
   isOneATwoBLeaderboardCommand,
 } from "../one-a-two-b/messages";
+import { getAllTimeTopThree as getBigTwoAllTimeTopThree, getLeaderboard as getBigTwoLeaderboard } from "../big-two/manager";
+import {
+  buildAllTimeTopThreeCard as buildBigTwoAllTimeTopThreeCard,
+  buildLeaderboardCard as buildBigTwoLeaderboardCard,
+  isBigTwoLeaderboardCommand,
+} from "../big-two/messages";
 
 const GREETING =
   "嗨嗨～我是這個群組的氣氛組🎉\n" +
@@ -95,7 +101,7 @@ async function handleEvent(event: webhook.Event): Promise<void> {
 
     // 小聚進行中，party 選單／遊戲的按鈕（可能是舊訊息裡殘留的）一律停用
     if (
-      ["help", "start_game", "cancel_game", "wordle_top3", "one_a_two_b_top3"].includes(data.action) &&
+      ["help", "start_game", "cancel_game", "wordle_top3", "one_a_two_b_top3", "big_two_top3"].includes(data.action) &&
       (await hasActiveMeetup(group.id))
     ) {
       return;
@@ -123,6 +129,11 @@ async function handleEvent(event: webhook.Event): Promise<void> {
       case "one_a_two_b_top3": {
         const top3 = await getOneATwoBAllTimeTopThree(group.id);
         await reply(event.replyToken, [buildOneATwoBAllTimeTopThreeCard(top3)]);
+        return;
+      }
+      case "big_two_top3": {
+        const top3 = await getBigTwoAllTimeTopThree(group.id);
+        await reply(event.replyToken, [buildBigTwoAllTimeTopThreeCard(top3)]);
         return;
       }
       default:
@@ -162,6 +173,12 @@ async function handleEvent(event: webhook.Event): Promise<void> {
     if (isOneATwoBLeaderboardCommand(text)) {
       const leaderboard = await getOneATwoBLeaderboard(group.id);
       await reply(event.replyToken, [buildOneATwoBLeaderboardCard(leaderboard)]);
+      return;
+    }
+
+    if (isBigTwoLeaderboardCommand(text)) {
+      const leaderboard = await getBigTwoLeaderboard(group.id);
+      await reply(event.replyToken, [buildBigTwoLeaderboardCard(leaderboard)]);
       return;
     }
 

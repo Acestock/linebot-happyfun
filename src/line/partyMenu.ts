@@ -250,6 +250,15 @@ export function buildPartyMenu(lineGroupId: string): messagingApi.Message {
           "1a2b 排行",
         )
       : null,
+    env.LIFF_ID_BIG_TWO
+      ? liffGameCard(
+          "🃏",
+          "大老二對戰",
+          "4 人即時對戰，缺人自動補機器人",
+          liffUrlWithGroupId(env.LIFF_ID_BIG_TWO, lineGroupId),
+          "大老二 排行",
+        )
+      : null,
   ].filter((row): row is NonNullable<typeof row> => row !== null);
 
   const liffRows =
@@ -372,6 +381,9 @@ export function buildHelpText(): string {
       : null,
     env.LIFF_ID_ONE_A_TWO_B
       ? `🔐 每日 1A2B：猜一組 4 位不重複的數字密碼，10 次機會內用幾A幾B推理出答案，輸入「1a2b 排行」查看群組排行榜。`
+      : null,
+    env.LIFF_ID_BIG_TWO
+      ? `🃏 大老二對戰：4 人即時對打，缺人自動補機器人，發起人可以設定要補幾隻機器人再開局，輸入「大老二 排行」查看群組排行榜。`
       : null,
   ].filter((line): line is string => line !== null);
   const liffSection = liffLines.length > 0 ? `\n🧩 網頁小遊戲（選單上點開）：\n${liffLines.join("\n")}` : "";

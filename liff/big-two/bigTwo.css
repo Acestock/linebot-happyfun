@@ -1,0 +1,593 @@
+:root {
+  --felt: #1b5e3a;
+  --felt-dark: #123d26;
+  --gold: #d4af37;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --text: #1a1a1a;
+  --muted: #888888;
+  --accent-1: #1b5e3a;
+  --accent-2: #2f8f5b;
+  --page-bg: #f2f6f3;
+  --card-red: #c0392b;
+  --card-black: #1a1a1a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121213;
+    --surface: #1c1d1f;
+    --text: #ffffff;
+    --muted: #a0a0a0;
+    --page-bg: #0e1512;
+    --card-red: #ff6b5e;
+    --card-black: #f0f0f0;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+  background: var(--page-bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 28px;
+  min-height: 100vh;
+}
+
+.header {
+  width: 100%;
+  text-align: center;
+  padding: 18px 16px 20px;
+  margin-bottom: 14px;
+  background: linear-gradient(135deg, var(--felt), var(--felt-dark));
+  border-radius: 0 0 20px 20px;
+  box-shadow: 0 4px 16px rgba(18, 61, 38, 0.35);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-spacer {
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.header h1 {
+  flex: 1;
+  font-size: 1.2rem;
+  margin: 0;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.help-button {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.help-button:active {
+  transform: scale(0.9);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.subtitle {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 6px 0 0;
+}
+
+main {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+}
+
+.message {
+  text-align: center;
+  font-size: 0.9rem;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.12);
+  width: 100%;
+}
+
+.primary-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(27, 94, 58, 0.35);
+  transition: transform 0.1s ease, opacity 0.15s ease;
+}
+
+.primary-button:active {
+  transform: scale(0.96);
+}
+
+.primary-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.secondary-button {
+  padding: 12px 20px;
+  border: 2px solid var(--muted);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-weight: bold;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.15s ease;
+}
+
+.secondary-button:active {
+  transform: scale(0.96);
+}
+
+.secondary-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---------- 沒有進行中的牌局 ---------- */
+
+.no-game-screen {
+  text-align: center;
+  width: 100%;
+  padding: 28px 16px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.no-game-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0 0 16px;
+  color: var(--text);
+}
+
+/* ---------- 大廳 ---------- */
+
+.lobby-screen {
+  width: 100%;
+  padding: 20px 16px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.lobby-title {
+  font-weight: bold;
+  margin: 0 0 12px;
+}
+
+.lobby-seats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.lobby-seat {
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(27, 94, 58, 0.12);
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.lobby-seat.empty {
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.host-controls-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.bot-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.stepper-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--felt);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.stepper-button:active {
+  transform: scale(0.9);
+}
+
+.bot-count {
+  font-size: 1.3rem;
+  font-weight: bold;
+  min-width: 1.5em;
+}
+
+.waiting-text {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* ---------- 牌桌 ---------- */
+
+.table-screen {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* [hidden] 元素預設是 display:none，author CSS 若對同一個選擇器又設了 display 會蓋過
+   UA 的 [hidden] 規則，導致元素永遠顯示——用 :not([hidden]) 包住才不會讓 hidden 失效。 */
+.table-screen:not([hidden]) {
+  display: flex;
+}
+
+.seat-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.seat-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  border: 2px solid transparent;
+}
+
+.seat-chip.active-turn {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.3);
+}
+
+.seat-chip.finished {
+  opacity: 0.55;
+}
+
+.seat-name {
+  font-size: 0.72rem;
+  font-weight: bold;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.seat-count {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.timer-bar {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  background: rgba(128, 128, 128, 0.18);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.timer-bar:not([hidden]) {
+  display: block;
+}
+
+.timer-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+  border-radius: 999px;
+  transition: width 0.2s linear, background 0.3s ease;
+}
+
+.timer-bar.critical .timer-fill {
+  background: #ef4444;
+  animation: timer-pulse 0.5s ease infinite;
+}
+
+@keyframes timer-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.turn-banner {
+  font-weight: bold;
+  font-size: 0.95rem;
+  margin: 0;
+  color: var(--text);
+}
+
+.turn-banner.my-turn {
+  color: var(--felt);
+}
+
+.trick-area {
+  width: 100%;
+  min-height: 84px;
+  padding: 12px;
+  background: var(--felt);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.trick-label {
+  margin: 0;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.trick-cards {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-height: 52px;
+}
+
+.hand-area {
+  width: 100%;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 10px;
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  min-height: 76px;
+}
+
+.card {
+  width: 40px;
+  height: 56px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fefefe;
+  color: var(--card-black);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  cursor: default;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  padding: 0;
+}
+
+button.card {
+  cursor: pointer;
+}
+
+.card.red {
+  color: var(--card-red);
+}
+
+.card-rank {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.card-suit {
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+button.card.selected {
+  transform: translateY(-10px);
+  box-shadow: 0 4px 10px rgba(212, 175, 55, 0.5);
+  border-color: var(--gold);
+}
+
+.action-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  justify-content: center;
+}
+
+/* ---------- 結算 ---------- */
+
+.finished-screen {
+  width: 100%;
+  text-align: center;
+  padding: 20px 16px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.finished-title {
+  font-weight: bold;
+  font-size: 1.05rem;
+  margin: 0 0 12px;
+}
+
+.finished-ranks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.finished-row {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(27, 94, 58, 0.1);
+  font-weight: bold;
+  text-align: left;
+}
+
+.finished-row.self {
+  background: rgba(212, 175, 55, 0.2);
+}
+
+/* ---------- 提示訊息 ---------- */
+
+.toast {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: rgba(20, 20, 20, 0.85);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: bold;
+  border-radius: 999px;
+  z-index: 6;
+  animation: toast-in-out 1.8s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes toast-in-out {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  15%,
+  75% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+
+/* ---------- 教學彈窗 ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 10;
+}
+
+.modal-overlay:not([hidden]) {
+  display: flex;
+}
+
+.modal {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 16px;
+  padding: 20px;
+  max-width: 320px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  color: var(--felt);
+}
+
+.modal p {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.modal-label {
+  font-weight: bold;
+}
+
+.legend {
+  padding-left: 18px;
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tutorial-close {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(27, 94, 58, 0.35);
+  transition: transform 0.1s ease;
+}
+
+.tutorial-close:active {
+  transform: scale(0.97);
+}

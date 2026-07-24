@@ -17,6 +17,12 @@ enum GameSessionStatus {
   timeout
 }
 
+enum BigTwoPhase {
+  LOBBY
+  PLAYING
+  FINISHED
+}
+
 enum MeetupPhase {
   SETUP
   READY
@@ -48,6 +54,8 @@ model Group {
   wordleDailyStats WordleDailyStats[]
   oneATwoBRounds      OneATwoBRound[]
   oneATwoBDailyStats  OneATwoBDailyStats[]
+  bigTwoGames         BigTwoGame[]
+  bigTwoDailyStats    BigTwoDailyStats[]
 
   @@map("groups")
 }
@@ -73,6 +81,9 @@ model GroupMember {
   wordleDailyStats    WordleDailyStats[]
   oneATwoBRounds      OneATwoBRound[]
   oneATwoBDailyStats  OneATwoBDailyStats[]
+  hostedBigTwoGames   BigTwoGame[]         @relation("BigTwoHost")
+  bigTwoSeats         BigTwoSeat[]
+  bigTwoDailyStats    BigTwoDailyStats[]
 
   @@unique([groupId, lineUserId])
   @@map("group_members")
@@ -333,4 +344,61 @@ model OneATwoBDailyStats {
   @@unique([groupId, memberId, date])
   @@index([groupId, date])
   @@map("one_a_two_b_daily_stats")
+}
+
+model BigTwoGame {
+  id              String      @id @default(uuid())
+  groupId         String      @map("group_id")
+  hostMemberId    String      @map("host_member_id")
+  phase           BigTwoPhase @default(LOBBY)
+  botCount        Int         @default(0) @map("bot_count")
+  currentTurnSeat Int?        @map("current_turn_seat")
+  currentTrick    Json?       @map("current_trick")
+  passCount       Int         @default(0) @map("pass_count")
+  turnDeadlineAt  DateTime?   @map("turn_deadline_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  finishedAt      DateTime?   @map("finished_at")
+
+  group Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  host  GroupMember @relation("BigTwoHost", fields: [hostMemberId], references: [id])
+  seats BigTwoSeat[]
+
+  @@index([groupId])
+  @@map("big_two_games")
+}
+
+model BigTwoSeat {
+  id         String   @id @default(uuid())
+  gameId     String   @map("game_id")
+  seatIndex  Int      @map("seat_index")
+  memberId   String?  @map("member_id")
+  isBot      Boolean  @default(false) @map("is_bot")
+  botName    String?  @map("bot_name")
+  hand       Json     @default("[]")
+  finishRank Int?     @map("finish_rank")
+
+  game   BigTwoGame   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  member GroupMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, seatIndex])
+  @@map("big_two_seats")
+}
+
+model BigTwoDailyStats {
+  id          String   @id @default(uuid())
+  groupId     String   @map("group_id")
+  memberId    String   @map("member_id")
+  date        String
+  gamesPlayed Int      @default(0) @map("games_played")
+  wins        Int      @default(0)
+  points      Int      @default(0)
+  bestRank    Int?     @map("best_rank")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  group  Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member GroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memberId, date])
+  @@index([groupId, date])
+  @@map("big_two_daily_stats")
 }

@@ -288,7 +288,8 @@ interface GameEngine<TConfig, TState, TMoveInput, TResult> {
 | `INTERNAL_STATS_TOKEN`（保護內部統計 endpoint） | `.env` | Railway Variables |
 | `LIFF_ID`（每日 Wordle LIFF app 的 ID） | `.env` | Railway Variables |
 | `LIFF_ID_ONE_A_TWO_B`（每日 1A2B LIFF app 的 ID，同一個 LINE Login channel 底下另開一個） | `.env` | Railway Variables |
-| `LIFF_CHANNEL_ID`（該 LINE Login channel 的 Channel ID，兩個 LIFF app 共用，驗證 ID token 用） | `.env` | Railway Variables |
+| `LIFF_ID_BIG_TWO`（大老二對戰 LIFF app 的 ID，同一個 LINE Login channel 底下另開一個） | `.env` | Railway Variables |
+| `LIFF_CHANNEL_ID`（該 LINE Login channel 的 Channel ID，三個 LIFF app 共用，驗證 ID token 用） | `.env` | Railway Variables |
 
 ---
 
@@ -311,6 +312,7 @@ interface GameEngine<TConfig, TState, TMoveInput, TResult> {
 | 4 | 主動互動排程（閒置互動＋逾時掃描）＋ Push 頻率限制 | 本機把門檻/間隔調短做手動驗證；驗證超過頻率上限時第二則 Push 會被擋下；驗證忘記回覆的遊戲會被逾時收尾 |
 | 5（stretch，後來實作為完整功能） | 每日 Wordle：LIFF 頁面＋共用 API 路由＋新的平行資料模型（`WordlePuzzle`/`WordleAttempt`，跟遊戲引擎/Meetup 一樣不共用既有 session 機制）；隨後 1A2B 依同一套模式再做一份 | 純邏輯（字母回饋演算法）的單元測試；真的本機 Postgres 跑 smoke script 驗證完整一局勝/敗＋排行榜排序；LIFF 畫面本身無法自動化測試，需部署後在 LINE App 內手動驗證 |
 | 6 | Wordle／1A2B 改版：一天一題的 `WordlePuzzle`/`WordleAttempt` 換成每人可連續挑戰多題的 `WordleRound`/`WordleDailyStats`（breaking migration，直接砍掉重建，不保留舊猜測歷史）；新增計分（連擊倍率＋手速加成，公式在新的 `src/shared/gameScoring.ts`）、每題倒數計時（隨連續題數從 60 秒壓到 10 秒，超時懶惰結算為失敗）、排行榜改依當天單回合最高分排序；LIFF 前端加上倒數 bar、右下角連擊／最高分 HUD、回合結算卡、confetti | 新的 `gameScoring.ts` 純函式單元測試；`logic.ts` 的 `baseScoreForGuesses`/`pickRoundWord` 單元測試；真的本機 Postgres 跑 smoke script 驗證完整流程（開局→贏拿分→連續開下一題疊 combo→輸或超時讓 combo 歸零→排行榜排序）；LIFF UI 用 headless Chromium 載入真實 CSS/JS＋mock fetch/liff 驗證畫面渲染邏輯，即時倒數/超時判定等跟時間有關的行為需部署後在 LINE App 內手動驗證 |
+| 7 | 新增大老二人機混合對戰（`src/big-two/`）：第一個多人互相對打的 LIFF 小遊戲，4 人一桌、人數不夠自動補機器人、一個群組同時一團（`BigTwoGame`/`BigTwoSeat`/`BigTwoDailyStats`，同樣不進 `src/games/engine/`）。即時同步選擇短輪詢（沿用既有 LIFF 打 REST API 模式，不引入 WebSocket/Redis pub-sub），手牌隱私靠 `getStateView()` 依請求者身分逐座位過濾；機器人回合／真人超時都用「懶惰推進」（`advanceBotTurns()`）處理，不需要新的排程機制。牌型判斷/比大小/回合推進是純函式（`logic.ts`），機器人策略刻意做成簡單貪婪（`botStrategy.ts`）。排行榜依名次積分（1st=3/2nd=2/3rd=1/4th=0）排序，UI 沿用 Flex 卡片＋歷史 TOP 3 按鈕的既有模式 | `logic.ts` 的牌型判斷/比大小/回合推進單元測試（含方塊 3 開局規則、pass 清桌、名次判定）；`botStrategy.ts` 的策略單元測試；真的本機 Postgres 跑 smoke script 驗證完整流程（建團→加入→設定機器人→開局→人機混合出牌到分出名次→排行榜排序、二次建團的 active-game 檢查）；LIFF UI 用 headless Chromium 載入真實 CSS/JS＋mock fetch/liff 驗證大廳/牌桌/結算三種畫面渲染邏輯與選牌互動，多位真人同時輪詢對戰的即時性需部署後在 LINE App 內手動驗證 |
 
 ---
 
