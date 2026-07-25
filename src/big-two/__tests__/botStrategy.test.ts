@@ -55,13 +55,22 @@ describe("chooseBotMove — following a pair", () => {
 });
 
 describe("chooseBotMove — following a five-card hand", () => {
-  it("beats a straight with a flush when available", () => {
+  it("cannot beat a straight with a flush — different 5-card shapes aren't comparable", () => {
     const hand = ["2D", "4D", "6D", "8D", "TD", "3C", "5C"];
+    const currentTrick = identifyCombo(["3H", "4S", "5D", "6C", "7H"])!;
+    const move = chooseBotMove(hand, currentTrick, false);
+    // 手上沒有更大的順子，也沒有炸彈，同花壓不過順子，只能 pass。
+    expect(move).toEqual({ action: "pass" });
+  });
+
+  it("bombs a straight with a quad when available", () => {
+    const hand = ["9D", "9C", "9H", "9S", "2D", "3C", "5C"];
     const currentTrick = identifyCombo(["3H", "4S", "5D", "6C", "7H"])!;
     const move = chooseBotMove(hand, currentTrick, false);
     expect(move.action).toBe("play");
     if (move.action !== "play") throw new Error("expected play");
     const combo = identifyCombo(move.cards)!;
+    expect(combo.shape).toBe("quad");
     expect(comboBeats(combo, currentTrick)).toBe(true);
   });
 

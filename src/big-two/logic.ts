@@ -170,11 +170,19 @@ export function identifyCombo(cardsInput: CardCode[]): Combo | null {
   return null;
 }
 
-/** 只有長度相同才能比；5 張牌型彼此都算「長度相同」，其餘長度還要牌型也一樣。 */
+// 鐵支跟同花順是唯二能跨牌型壓過其他五張牌型的「炸彈」；順子／同花／葫蘆彼此之間
+// 不能互壓（例如葫蘆不能壓順子），只能用同一種牌型、更大的牌去接。
+const BOMB_SHAPES = new Set<ComboShape>(["quad", "straightflush"]);
+
+/**
+ * 只有長度相同才能比。長度不是 5 的話，牌型也要一樣（例如對子只能被對子接）；
+ * 長度是 5 的話，同牌型永遠能比，不同牌型則只有其中一邊是炸彈（鐵支／同花順）才能比。
+ */
 export function combosComparable(a: Combo, b: Combo): boolean {
   if (a.cards.length !== b.cards.length) return false;
-  if (a.cards.length === 5) return true;
-  return a.shape === b.shape;
+  if (a.cards.length !== 5) return a.shape === b.shape;
+  if (a.shape === b.shape) return true;
+  return BOMB_SHAPES.has(a.shape) || BOMB_SHAPES.has(b.shape);
 }
 
 export function comboBeats(candidate: Combo, current: Combo): boolean {

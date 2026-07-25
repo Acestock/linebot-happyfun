@@ -151,25 +151,32 @@ describe("comboBeats / combosComparable", () => {
     expect(comboBeats(spade, heart)).toBe(true);
   });
 
-  it("any 5-card combo can be compared against any other 5-card combo", () => {
+  it("straight, flush and full house cannot beat each other across shapes — only same-shape comparisons work", () => {
     const straight = identifyCombo(["3D", "4C", "5H", "6S", "7D"])!;
     const flush = identifyCombo(["3D", "5D", "7D", "9D", "KD"])!;
-    expect(combosComparable(straight, flush)).toBe(true);
-    expect(comboBeats(flush, straight)).toBe(true);
-  });
-
-  it("full house beats flush regardless of individual card ranks", () => {
-    const flush = identifyCombo(["AD", "TD", "8D", "6D", "4D"])!; // 高牌是 A，牌力仍低於葫蘆
     const fullhouse = identifyCombo(["3D", "3C", "3H", "4D", "4C"])!;
-    expect(comboBeats(fullhouse, flush)).toBe(true);
+
+    expect(combosComparable(straight, flush)).toBe(false);
+    expect(comboBeats(flush, straight)).toBe(false);
+    expect(comboBeats(fullhouse, flush)).toBe(false);
+    expect(comboBeats(fullhouse, straight)).toBe(false);
+
+    // 同牌型還是照常比大小
+    const higherStraight = identifyCombo(["4D", "5C", "6H", "7S", "8D"])!;
+    expect(comboBeats(higherStraight, straight)).toBe(true);
   });
 
-  it("quad beats full house, straight flush beats quad", () => {
+  it("quad and straight flush are bombs that beat any other 5-card shape regardless of rank", () => {
+    const straight = identifyCombo(["3D", "4C", "5H", "6S", "7D"])!;
+    const flush = identifyCombo(["AD", "TD", "8D", "6D", "4D"])!; // 高牌是 A，還是打不過炸彈
     const fullhouse = identifyCombo(["KD", "KC", "KH", "QD", "QC"])!;
-    const quad = identifyCombo(["3D", "3C", "3H", "3S", "4D"])!;
+    const lowQuad = identifyCombo(["3D", "3C", "3H", "3S", "4D"])!; // 最小的鐵支
     const straightflush = identifyCombo(["4D", "5D", "6D", "7D", "8D"])!;
-    expect(comboBeats(quad, fullhouse)).toBe(true);
-    expect(comboBeats(straightflush, quad)).toBe(true);
+
+    expect(comboBeats(lowQuad, straight)).toBe(true);
+    expect(comboBeats(lowQuad, flush)).toBe(true);
+    expect(comboBeats(lowQuad, fullhouse)).toBe(true);
+    expect(comboBeats(straightflush, lowQuad)).toBe(true);
   });
 });
 
