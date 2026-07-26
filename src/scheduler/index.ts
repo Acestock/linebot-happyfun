@@ -5,6 +5,7 @@ import { sweepTimedOutGames } from "./gameTimeout";
 import { sweepIdleGroups } from "./idleNudge";
 import { sweepIdleMeetups } from "./meetupTimeout";
 import { sweepPhaseReminders } from "./meetupPhaseReminder";
+import { sweepAbandonedBigTwoGames } from "./bigTwoAbandon";
 
 function everyNMinutes(n: number): string {
   const clamped = Math.min(Math.max(Math.round(n), 1), 59);
@@ -40,12 +41,18 @@ export function startSchedulers(): void {
     });
   }
 
+  // 大老二棄局保護：LOBBY 沒開局、PLAYING 沒人動作太久就自動取消，這是可靠度保險絲，預設開啟
+  cron.schedule(everyNMinutes(env.BIG_TWO_ABANDON_SWEEP_INTERVAL_MINUTES), () => {
+    sweepAbandonedBigTwoGames().catch((err) => logger.error({ err }, "big-two abandon sweep failed"));
+  });
+
   logger.info(
     {
       gameTimeoutEveryMin: env.GAME_TIMEOUT_SWEEP_INTERVAL_MINUTES,
       idleNudgeEnabled: env.IDLE_NUDGE_ENABLED,
       meetupIdleTimeoutEnabled: env.MEETUP_IDLE_TIMEOUT_ENABLED,
       meetupPhaseReminderEnabled: env.MEETUP_PHASE_REMINDER_ENABLED,
+      bigTwoAbandonSweepEveryMin: env.BIG_TWO_ABANDON_SWEEP_INTERVAL_MINUTES,
     },
     "schedulers started",
   );

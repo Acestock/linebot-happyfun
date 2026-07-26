@@ -21,6 +21,7 @@ enum BigTwoPhase {
   LOBBY
   PLAYING
   FINISHED
+  CANCELLED
 }
 
 enum MeetupPhase {
@@ -357,6 +358,7 @@ model BigTwoGame {
   passedSeats     Json        @default("[]") @map("passed_seats")
   turnDeadlineAt  DateTime?   @map("turn_deadline_at")
   createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
   finishedAt      DateTime?   @map("finished_at")
 
   group Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)

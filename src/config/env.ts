@@ -43,6 +43,12 @@ const envSchema = z.object({
   MEETUP_PHASE_REMINDER_LEAD_MINUTES: z.coerce.number().default(5),
   MEETUP_PHASE_REMINDER_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(5),
 
+  // 大老二棄局保護：LOBBY 太久沒開局／PLAYING 太久沒人動作（沒人在輪詢）就自動取消，
+  // 避免佔用「一個群組只能開一團」的名額，卡死整個群組沒辦法再開新局。
+  BIG_TWO_LOBBY_ABANDON_MINUTES: z.coerce.number().default(15),
+  BIG_TWO_PLAYING_ABANDON_MINUTES: z.coerce.number().default(20),
+  BIG_TWO_ABANDON_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(5),
+
   INTERNAL_STATS_TOKEN: z.string().optional(),
   // 每日 Wordle 用的 LIFF app ID
   LIFF_ID: z.string().optional(),

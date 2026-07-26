@@ -327,6 +327,27 @@ main {
   opacity: 0.55;
 }
 
+.seat-chip.tingpai {
+  border-color: var(--gold);
+  animation: tingpai-pulse 1s ease-in-out infinite;
+}
+
+.tingpai-badge {
+  font-size: 0.62rem;
+  color: var(--gold);
+  font-weight: bold;
+}
+
+@keyframes tingpai-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(212, 175, 55, 0);
+  }
+}
+
 .seat-name {
   font-size: 0.72rem;
   font-weight: bold;
@@ -519,6 +540,22 @@ button.card.selected {
   border-color: var(--gold);
 }
 
+button.card.playing-out {
+  animation: card-play-out 0.22s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes card-play-out {
+  0% {
+    transform: translateY(-10px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-32px) scale(0.8);
+    opacity: 0;
+  }
+}
+
 .action-row {
   gap: 12px;
   width: 100%;
@@ -668,4 +705,24 @@ button.card.selected {
 
 .tutorial-close:active {
   transform: scale(0.97);
+}
+
+.confetti-piece {
+  position: fixed;
+  top: -20px;
+  font-size: 1.2rem;
+  z-index: 7;
+  pointer-events: none;
+  animation: confetti-fall linear forwards;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(540deg);
+    opacity: 0;
+  }
 }

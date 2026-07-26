@@ -9,6 +9,8 @@ const TURN_TIME_LIMIT_MS = 45000; // 純視覺用，要跟 src/big-two/manager.t
 const SUIT_SYMBOLS = { D: "♦", C: "♣", H: "♥", S: "♠" };
 const RED_SUITS = new Set(["D", "H"]);
 const RANK_MEDALS = ["🥇", "🥈", "🥉", "🏅"];
+const CONFETTI_EMOJI = ["🎉", "✨", "🃏", "🎊", "⭐"];
+const PLAY_OUT_ANIMATION_MS = 220;
 
 const el = {
   subtitle: document.getElementById("subtitle"),
@@ -49,6 +51,7 @@ const el = {
   passButton: document.getElementById("pass-button"),
 
   finishedScreen: document.getElementById("finished-screen"),
+  finishedTitle: document.getElementById("finished-title"),
   finishedRanks: document.getElementById("finished-ranks"),
   playAgainButton: document.getElementById("play-again-button"),
 };
@@ -85,7 +88,22 @@ const state = {
   pollHandle: null,
   turnTimerHandle: null,
   knownTrickPlayCount: 0, // 這一輪已經畫過幾手，只有新增的那幾手才會有進場動畫
+  finishCelebrated: false, // 這一場的贏局動畫是否已經放過，避免每次輪詢都重放一次
 };
+
+function spawnConfetti() {
+  const count = 20;
+  for (let i = 0; i < count; i++) {
+    const piece = document.createElement("span");
+    piece.className = "confetti-piece";
+    piece.textContent = CONFETTI_EMOJI[Math.floor(Math.random() * CONFETTI_EMOJI.length)];
+    piece.style.left = `${Math.random() * 100}vw`;
+    piece.style.animationDuration = `${1.2 + Math.random() * 1}s`;
+    piece.style.fontSize = `${0.9 + Math.random() * 0.8}rem`;
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 2400);
+  }
+}
 
 function hideAll(elements) {
   elements.forEach((e) => {
@@ -130,6 +148,7 @@ function renderCardEl(code, selectable) {
   const { rank, suit, red } = cardParts(code);
   const cardEl = document.createElement(selectable ? "button" : "div");
   cardEl.className = "card" + (red ? " red" : "");
+  cardEl.dataset.code = code;
   cardEl.innerHTML = `<span class="card-rank">${rank}</span><span class="card-suit">${suit}</span>`;
   return cardEl;
 }
@@ -229,7 +248,11 @@ function renderTable(game) {
     chip.className = "seat-chip";
     if (seat.seatIndex === game.currentTurnSeat) chip.classList.add("active-turn");
     if (seat.finishRank) chip.classList.add("finished");
-    chip.innerHTML = `<span class="seat-name">${seatLabel(seat)}</span><span class="seat-count">🂠 ${seat.handCount}</span>`;
+    // 聽牌：只剩最後一張牌還沒出完，用來提醒大家這位快贏了，牌局大概快結束
+    const tingpai = !seat.finishRank && seat.handCount === 1;
+    if (tingpai) chip.classList.add("tingpai");
+    const badgeHtml = tingpai ? `<span class="tingpai-badge">🔥 聽牌！</span>` : "";
+    chip.innerHTML = `<span class="seat-name">${seatLabel(seat)}</span><span class="seat-count">🂠 ${seat.handCount}</span>${badgeHtml}`;
     el.seatStrip.appendChild(chip);
   });
 
@@ -254,7 +277,18 @@ function renderTable(game) {
 }
 
 function renderFinished(game) {
+  const cancelled = game.phase === "CANCELLED";
+  el.finishedTitle.textContent = cancelled ? "⏱️ 牌局已自動取消" : "🏁 遊戲結束";
   el.finishedRanks.innerHTML = "";
+
+  if (cancelled) {
+    const note = document.createElement("p");
+    note.className = "spectator-note";
+    note.textContent = "太久沒有人動作，這場牌局已經自動收掉，按下面的按鈕重新開一局吧！";
+    el.finishedRanks.appendChild(note);
+    return;
+  }
+
   const ranked = [...game.seats].filter((s) => s.finishRank).sort((a, b) => a.finishRank - b.finishRank);
   ranked.forEach((seat) => {
     const row = document.createElement("div");
@@ -262,6 +296,16 @@ function renderFinished(game) {
     row.textContent = `${RANK_MEDALS[seat.finishRank - 1] ?? seat.finishRank} ${seatLabel(seat)}`;
     el.finishedRanks.appendChild(row);
   });
+
+  // 只在第一次看到這場結果時放一次贏局動畫，避免短輪詢每 1.8 秒重畫同一個結算畫面就重放。
+  if (!state.finishCelebrated) {
+    state.finishCelebrated = true;
+    const mySeat = game.seats.find((s) => s.isSelf);
+    if (mySeat && mySeat.finishRank === 1) {
+      spawnConfetti();
+      showToast("🎉 恭喜獲得本局冠軍！");
+    }
+  }
 }
 
 function renderAll() {
@@ -272,6 +316,7 @@ function renderAll() {
     hideAll(ALL_SCREENS);
     el.noGameScreen.hidden = false;
     stopTurnTimer();
+    state.finishCelebrated = false;
     return;
   }
 
@@ -280,6 +325,7 @@ function renderAll() {
     hideAll(ALL_SCREENS);
     el.lobbyScreen.hidden = false;
     stopTurnTimer();
+    state.finishCelebrated = false;
     return;
   }
 
@@ -287,6 +333,7 @@ function renderAll() {
     renderTable(game);
     hideAll(ALL_SCREENS);
     el.tableScreen.hidden = false;
+    state.finishCelebrated = false;
     return;
   }
 
@@ -412,7 +459,17 @@ async function handlePlay() {
     return;
   }
   const cards = [...state.selected];
+
+  // 出牌動畫：選到的牌先播一個縮小淡出的效果，體感上比「按下去畫面就整個重畫」更像真的把牌打出去。
+  const cardEls = cards
+    .map((code) => el.handArea.querySelector(`[data-code="${code}"]`))
+    .filter((cardEl) => cardEl !== null);
+  cardEls.forEach((cardEl) => cardEl.classList.add("playing-out"));
   state.selected.clear();
+  if (cardEls.length > 0) {
+    await new Promise((resolve) => setTimeout(resolve, PLAY_OUT_ANIMATION_MS));
+  }
+
   const result = await postAction("play", { cards });
   if (!result.ok && result.error !== "busy") {
     showToast("這樣出不合法喔");

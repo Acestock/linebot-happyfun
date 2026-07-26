@@ -133,7 +133,11 @@ SETUP → READY → OPENING → CHECKIN → ICEBREAKER → INTERACTION → FREE_
 
 牌型判斷、比大小、梅花 3 開局規則、回合推進都是純函式（`src/big-two/logic.ts`），資料庫只存座位的手牌／名次，牌局狀態機（`BigTwoGame`／`BigTwoSeat`）完全不進 `src/games/engine/`（那套引擎假設單一共用狀態、無座位順序、文字指令驅動，跟需要「座位順序 + 每人私有手牌 + 多人同時看牌桌」的大老二架構完全不合），是繼小聚活動主持人、Wordle/1A2B 之後第三個獨立的平行資料模型。
 
-排行榜不算牌計分，改成**依名次拿積分**：第一名 3 分、第二名 2 分、第三名 1 分、第四名 0 分，每天累積，輸入「大老二 排行」查看今天的排行榜卡片，一樣有「🏆 歷史最高分 TOP 3」按鈕可以切換看不限日期、單日積分最高的史上前三名（`src/big-two/manager.ts` 的 `getLeaderboard`/`getAllTimeTopThree`，`src/big-two/messages.ts` 的 Flex 卡片）。
+排行榜不算牌計分，改成**依名次拿積分**：第一名 3 分、第二名 2 分、第三名 1 分、第四名 0 分，每天累積，輸入「大老二 排行」查看今天的排行榜卡片，一樣有「🏆 歷史最高分 TOP 3」按鈕可以切換看不限日期、單日積分最高的史上前三名（`src/big-two/manager.ts` 的 `getLeaderboard`/`getAllTimeTopThree`，`src/big-two/messages.ts` 的 Flex 卡片）。至少要有 **2 個真人**玩完一場才會計分——1 個真人 + 3 隻機器人湊桌陪練不算對戰，不該讓排行榜失去意義（`recordDailyStats()` 的守門條件）。
+
+**棄局保護**：LOBBY 開太久沒人按開始、或 PLAYING 太久沒人在輪詢（大家都離開了），代表這場牌局已經被放棄，`src/scheduler/bigTwoAbandon.ts` 會定時（預設每 5 分鐘）把這種牌局標記成 `CANCELLED`，避免它一直佔用「一個群組只能開一團」的名額，卡死整個群組沒辦法再開新局；門檻用 `BIG_TWO_LOBBY_ABANDON_MINUTES`／`BIG_TWO_PLAYING_ABANDON_MINUTES` 設定（預設 15／20 分鐘），`BigTwoGame.updatedAt` 是 Prisma `@updatedAt`，玩家出牌/跳過/機器人懶惰推進時都會自動刷新，不需要額外維護「最後活動時間」欄位。
+
+**出牌／贏局／聽牌都有小動畫**：選好牌按下「出牌」，卡片會先播一個縮小淡出的效果才送出動作，體感上比整個畫面瞬間重畫更像真的把牌打出去；自己拿下本局冠軍時會放一次彩帶動畫；只剩最後一張牌還沒出完的座位（不管是自己還是別人）會被標記「🔥 聽牌！」並用金色外框提醒大家牌局快結束了（`liff/big-two/bigTwo.js`／`bigTwo.css`）。
 
 **LIFF app 設定**：一樣掛在申請 Wordle 時建立的那個 LINE Login channel 底下，LIFF 分頁再 Add 一個新的 LIFF app（Endpoint URL 填 `https://<你的網域>/liff/big-two/`，Scope 勾 `openid`），把拿到的 LIFF ID 填進 `LIFF_ID_BIG_TWO`；`LIFF_CHANNEL_ID` 一樣不用重填。完整步驟見 `.env.example` 裡的註解。
 

@@ -169,7 +169,9 @@ async function recordDailyStats(game: GameWithSeats, table: TableState): Promise
     })
     .filter((x): x is { memberId: string; finishRank: number } => x !== null);
 
-  if (humanFinishers.length === 0) return;
+  // 至少要有 2 個真人才計入排行榜，避免「1 個真人 + 3 隻機器人」這種等同單人練習的對局
+  // 也能刷積分／勝場，讓排行榜失去對戰的意義。
+  if (humanFinishers.length < 2) return;
 
   const existingRows = await prisma.bigTwoDailyStats.findMany({
     where: { groupId: game.groupId, date, memberId: { in: humanFinishers.map((f) => f.memberId) } },
@@ -421,6 +423,43 @@ export async function passTurn(groupId: string, member: MemberIdentity): Promise
   updatedGame = await advanceBotTurns(updatedGame);
 
   return { ok: true, state: { game: toGameView(updatedGame, member) } };
+}
+
+const DEFAULT_LOBBY_ABANDON_MINUTES = 15;
+const DEFAULT_PLAYING_ABANDON_MINUTES = 20;
+
+/**
+ * 棄局保護：LOBBY 開了太久沒人開始、或 PLAYING 太久沒有任何動作（代表沒人在輪詢，大家
+ * 都已經離開)，就自動標記成 CANCELLED，讓 findActiveGame 不再把它當成進行中的團，
+ * 這樣「一個群組只能開一團」的限制才不會被一個廢棄的牌局永久卡死。
+ * updatedAt 是 Prisma `@updatedAt`，玩家出牌/跳過/機器人懶惰推進時都會自動刷新，
+ * 不需要額外手動維護「最後活動時間」欄位。
+ */
+export async function sweepAbandonedGames(
+  lobbyAbandonMinutes = DEFAULT_LOBBY_ABANDON_MINUTES,
+  playingAbandonMinutes = DEFAULT_PLAYING_ABANDON_MINUTES,
+): Promise<number> {
+  const now = Date.now();
+  const lobbyCutoff = new Date(now - lobbyAbandonMinutes * 60 * 1000);
+  const playingCutoff = new Date(now - playingAbandonMinutes * 60 * 1000);
+
+  const result = await prisma.bigTwoGame.updateMany({
+    where: {
+      OR: [
+        { phase: "LOBBY", createdAt: { lt: lobbyCutoff } },
+        { phase: "PLAYING", updatedAt: { lt: playingCutoff } },
+      ],
+    },
+    data: {
+      phase: "CANCELLED",
+      currentTurnSeat: null,
+      currentTrick: Prisma.DbNull,
+      turnDeadlineAt: null,
+      finishedAt: new Date(),
+    },
+  });
+
+  return result.count;
 }
 
 /** LIFF 頁面輪詢用：找目前（或最近一次結束）的牌局，PLAYING 時順便懶惰推進機器人／超時回合。 */
