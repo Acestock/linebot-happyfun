@@ -50,6 +50,10 @@ const envSchema = z.object({
   BIG_TWO_ABANDON_SWEEP_INTERVAL_MINUTES: z.coerce.number().default(5),
 
   INTERNAL_STATS_TOKEN: z.string().optional(),
+  // 沒有本機／CLI 可以連正式環境資料庫時的最後手段：設了這個值才會啟用
+  // GET /internal/migrate-resolve，讓卡住的 migration 可以直接用瀏覽器連結修復
+  // （見 src/app.ts）。不設就完全不存在這條路（回 404），修完建議把這個變數刪掉。
+  MIGRATE_RESOLVE_TOKEN: z.string().optional(),
   // 每日 Wordle 用的 LIFF app ID
   LIFF_ID: z.string().optional(),
   // 每日 1A2B 用的 LIFF app ID——每個 LIFF 網頁小遊戲都要在同一個 LINE Login channel
